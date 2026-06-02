@@ -56,21 +56,7 @@
       <h2>🏆 Torneos</h2>
       <button class="btn btn-primary" id="btn-new-tournament" style="display:none" onclick="openNewTournamentModal()">+ Nuevo torneo</button>
     </div>
-    <!-- Quick tools for all users -->
-    <div id="quick-tools" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px">
-      <button class="btn" onclick="openRoomsScreen()" style="border-color:var(--magic);color:var(--magic);font-weight:700">
-        🧙 Commander en vivo — Salas
-      </button>
-      <button class="btn" onclick="openFreeLifeCounter('commander')" style="border-color:var(--magic);color:var(--magic)">
-        🧙 Contador solo (40 PV)
-      </button>
-      <button class="btn" onclick="openFreeLifeCounter('standard')" style="border-color:var(--std);color:var(--std)">
-        🃏 Contador vida Standard (20)
-      </button>
-      <button class="btn" onclick="openFreeSpinner()" style="border-color:var(--bey);color:var(--bey)">
-        🎲 Ruleta / Dados
-      </button>
-    </div>
+    <div id="quick-tools" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px"></div>
 
     <div id="tournament-list" class="tournament-grid">
       <div class="empty-state">Cargando torneos...</div>
