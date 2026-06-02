@@ -419,7 +419,6 @@ async function changeRoomCmdrDmg(oppId, delta) {
 
 // ── REALTIME DE SALA ──────────────────────────────────────
 function subscribeRoomChannel(roomId) {
-  // Limpiar canal anterior
   if (roomState.channel) { _supabase.removeChannel(roomState.channel); }
 
   roomState.channel = _supabase
@@ -429,31 +428,34 @@ function subscribeRoomChannel(roomId) {
       table: 'commander_rooms', filter: `id=eq.${roomId}`
     }, (payload) => {
       if (!payload.new) return;
+      const prevStatus = roomState.room?.status;
       roomState.room = payload.new;
       const slots = JSON.parse(payload.new.slots || '[]');
 
-      // Si cambió a "playing", mostrar partida
-      if (payload.new.status === 'playing') {
+      // Transición waiting → playing: mostrar partida a todos
+      if (payload.new.status === 'playing' && prevStatus === 'waiting') {
         showRoomGame(payload.new);
         return;
       }
 
+      // En lobby: actualizar lista de jugadores
       if (payload.new.status === 'waiting') {
-        // Actualizar lobby
         const lobbyEl = document.getElementById('lobby-slots');
         if (lobbyEl) {
           lobbyEl.innerHTML = renderLobbySlots(slots, roomState.mySlot?.id);
-          // Habilitar/deshabilitar botón de inicio
           const btnStart = document.getElementById('btn-start-room');
-          if (btnStart) btnStart.disabled = slots.length < 2;
+          if (btnStart) {
+            btnStart.disabled = slots.length < 2;
+            btnStart.style.opacity = slots.length < 2 ? '0.5' : '1';
+          }
         }
         return;
       }
 
+      // En partida: actualizar vidas y daño de todos menos el mío
       if (payload.new.status === 'playing') {
-        // Actualizar vidas en tiempo real
         slots.forEach(s => {
-          if (s.id === roomState.mySlot?.id) return; // no sobreescribir la mía
+          if (s.id === roomState.mySlot?.id) return;
           const el = document.getElementById('room-life-' + s.id);
           if (el) {
             el.textContent = s.life;
