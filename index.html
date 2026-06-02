@@ -6,32 +6,16 @@
 <title>Rescue TCG — Torneos</title>
 <link rel="stylesheet" href="css/style.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<style>
-  /* Fix fondo blanco de imágenes JPEG */
-  .auth-bunny {
-    mix-blend-mode: screen;
-    filter: drop-shadow(0 8px 32px rgba(255,45,138,0.6)) contrast(1.05);
-  }
-  .auth-logo img {
-    mix-blend-mode: screen;
-    filter: contrast(1.1) brightness(1.05);
-  }
-  .nav-logo img {
-    mix-blend-mode: screen;
-    filter: contrast(1.1);
-    background: transparent;
-  }
-</style>
 </head>
 <body>
 
 <!-- ===================== AUTH ===================== -->
 <div id="screen-auth" class="screen">
   <div class="auth-wrap">
-    <img class="auth-bunny" src="img/mad-bunny.jpeg" alt="Mad Bunny">
+    <img class="auth-bunny" src="img/mad-bunny.png" alt="Mad Bunny">
     <div class="auth-card">
       <div class="auth-logo">
-        <img src="img/logo.jpeg" alt="Rescue TCG">
+        <img src="img/logo.png" alt="Rescue TCG">
       </div>
       <p class="auth-title">Plataforma oficial de torneos</p>
       <div class="tab-row" id="auth-tabs">
@@ -58,7 +42,7 @@
 <div id="screen-dashboard" class="screen">
   <nav class="navbar">
     <div class="nav-logo">
-      <img src="img/logo.jpeg" alt="Rescue TCG">
+      <img src="img/logo.png" alt="Rescue TCG">
       <span class="nav-logo-text">Rescue TCG</span>
     </div>
     <div class="nav-right">
@@ -83,7 +67,7 @@
   <nav class="navbar">
     <button class="btn btn-ghost btn-sm" onclick="goToDashboard()">← Volver</button>
     <div class="nav-logo">
-      <img src="img/logo.jpeg" alt="Rescue TCG">
+      <img src="img/logo.png" alt="Rescue TCG">
       <span class="nav-logo-text" id="t-name-nav">Torneo</span>
     </div>
     <div class="nav-right">
@@ -98,7 +82,7 @@
   <nav class="navbar">
     <button class="btn btn-ghost btn-sm" onclick="leaveGame()">← Salir</button>
     <div class="nav-logo">
-      <img src="img/logo.jpeg" alt="Rescue TCG">
+      <img src="img/logo.png" alt="Rescue TCG">
       <span class="nav-logo-text" id="game-title">Partida</span>
     </div>
     <div class="nav-right">
