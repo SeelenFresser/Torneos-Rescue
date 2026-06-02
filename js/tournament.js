@@ -109,22 +109,34 @@ function renderJoinButton() {
   if (isAdmin) return '';
   const t = currentTournament;
   const myPlayer = tournamentPlayers.find(p => p.user_id === currentUser?.id);
+
   if (myPlayer) {
     if (t.status === 'active') {
-      return `<div style="margin-bottom:12px">
+      return `<div style="margin-bottom:12px;display:flex;gap:8px;align-items:center">
         <button class="btn btn-primary" onclick="enterGameApp('${t.id}')">🎮 Entrar a la partida</button>
+        <span style="color:var(--green);font-size:12px">✓ Inscrito como <strong>${escHtml(myPlayer.name)}</strong></span>
       </div>`;
     }
-    return `<div style="margin-bottom:12px;padding:10px 14px;background:var(--dark3);border:1px solid var(--border);border-radius:var(--radius)">
+    return `<div style="margin-bottom:12px;padding:10px 14px;background:var(--dark3);border:1px solid var(--border);border-radius:var(--radius);display:flex;align-items:center;gap:8px">
       <span style="color:var(--green);font-size:13px">✓ Inscrito</span>
-      <span style="color:var(--muted);font-size:12px;margin-left:8px">El torneo comenzará pronto</span>
+      <span style="color:var(--text);font-size:13px;font-weight:600">${escHtml(myPlayer.name)}</span>
+      <span style="color:var(--muted);font-size:12px">— El torneo comenzará pronto</span>
     </div>`;
   }
+
   if (t.status === 'upcoming') {
-    return `<div style="margin-bottom:12px">
+    return `<div style="margin-bottom:12px;padding:12px 14px;background:var(--dark3);border:1px solid var(--border2);border-radius:var(--radius)">
+      <p style="font-size:13px;color:var(--muted);margin-bottom:8px">¿Quieres participar en este torneo?</p>
       <button class="btn btn-primary" onclick="openJoinModal('${t.id}','${escHtml(t.name)}','${t.type}')">+ Inscribirme</button>
     </div>`;
   }
+
+  if (t.status === 'active') {
+    return `<div style="margin-bottom:12px;padding:10px 14px;background:var(--dark3);border:1px solid var(--border);border-radius:var(--radius)">
+      <span style="color:var(--muted);font-size:12px">El torneo ya inició — inscripción cerrada</span>
+    </div>`;
+  }
+
   return '';
 }
 
