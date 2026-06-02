@@ -36,8 +36,8 @@ function openEditTournamentModal(id, event) {
 
   if (t.tournament_date) {
     const d = new Date(t.tournament_date);
-    document.getElementById('nt-date').value = d.toISOString().split('T')[0];
-    document.getElementById('nt-time').value = d.toTimeString().slice(0,5);
+    const yyyy=d.getFullYear(),mm=String(d.getMonth()+1).padStart(2,'0'),dd=String(d.getDate()).padStart(2,'0'); document.getElementById('nt-date').value = yyyy+'-'+mm+'-'+dd;
+    const hh=String(d.getHours()).padStart(2,'0'),min=String(d.getMinutes()).padStart(2,'0'); document.getElementById('nt-time').value = hh+':'+min;
   }
 
   document.querySelectorAll('.type-card').forEach(c => c.classList.toggle('active', c.dataset.type === t.type));
@@ -192,5 +192,5 @@ function formatTournamentDate(iso) {
   if (!iso) return '';
   const d = new Date(iso);
   return d.toLocaleDateString('es-MX', { weekday:'long', day:'2-digit', month:'long', year:'numeric' })
-    + (iso.includes('T') && !iso.endsWith('T00:00:00') ? ' · ' + d.toLocaleTimeString('es-MX', { hour:'2-digit', minute:'2-digit' }) : '');
+    + (iso.includes('T') && !iso.endsWith('T00:00:00') ? ' · ' + d.toLocaleTimeString('es-MX', { hour:'2-digit', minute:'2-digit', hour12:false }) : '');
 }
