@@ -53,7 +53,16 @@ async function createTournament() {
   const time = document.getElementById('nt-time').value;
   if (!date) { showToast('Pon la fecha del torneo'); return; }
 
-  const tournament_date = time ? `${date}T${time}:00` : `${date}T00:00:00`;
+  // Build date preserving local timezone (avoid UTC shift)
+  const tournament_date = (() => {
+    const base = time ? `${date}T${time}:00` : `${date}T00:00:00`;
+    const d = new Date(base);
+    const off = -d.getTimezoneOffset();
+    const sign = off >= 0 ? '+' : '-';
+    const hh = String(Math.floor(Math.abs(off)/60)).padStart(2,'0');
+    const mm = String(Math.abs(off)%60).padStart(2,'0');
+    return base + sign + hh + ':' + mm;
+  })();
   const description = document.getElementById('nt-desc').value.trim();
 
   if (editingTournamentId) {
@@ -191,6 +200,8 @@ function goToDashboard() {
 function formatTournamentDate(iso) {
   if (!iso) return '';
   const d = new Date(iso);
-  return d.toLocaleDateString('es-MX', { weekday:'long', day:'2-digit', month:'long', year:'numeric' })
-    + (iso.includes('T') && !iso.endsWith('T00:00:00') ? ' · ' + d.toLocaleTimeString('es-MX', { hour:'2-digit', minute:'2-digit', hour12:false }) : '');
+  const dateStr = d.toLocaleDateString('es-MX', { weekday:'long', day:'2-digit', month:'long', year:'numeric' });
+  const hasTime = iso.includes('T') && !iso.endsWith('T00:00:00') && !iso.endsWith('T00:00:00+00:00');
+  const timeStr = hasTime ? String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0') : '';
+  return dateStr + (timeStr ? ' · ' + timeStr : '');
 }
