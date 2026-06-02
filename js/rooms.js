@@ -68,11 +68,22 @@ function openRoomsScreen() {
   `;
 }
 
+// ── LIMPIAR SALAS VIEJAS ─────────────────────────────────
+async function cleanOldRooms() {
+  const cutoff = new Date(Date.now() - 90 * 60 * 1000).toISOString();
+  await _supabase.from('commander_rooms')
+    .delete()
+    .or(`created_at.lt.${cutoff},status.eq.finished`);
+}
+
 // ── CREAR SALA ────────────────────────────────────────────
 async function createRoom() {
   const hostName = document.getElementById('room-host-name').value.trim();
   if (!hostName) { showToast('Pon tu nombre'); return; }
   const startLife = parseInt(document.getElementById('room-start-life').value) || 40;
+
+  // Limpiar salas viejas antes de crear
+  await cleanOldRooms();
 
   // Generar código único de 6 chars
   const code = generateRoomCode();
