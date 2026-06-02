@@ -1,325 +1,662 @@
 // =============================================
-// COMMANDER — PODS (2–32 jugadores)
-// Sistema de puntos estándar de tienda
+// COMMANDER — Sistema completo
+// Pods automáticos · Sesiones individuales
+// cEDH con kills · Admin confirma
 // =============================================
 
-const POINTS_SYSTEMS = {
-  standard:  { label:'Estándar (tienda)',  desc:'1°=3pts · 2°=1pt · 3°=0 · 4°=0',   fn: (place, pod) => place===1?3:place===2?1:0 },
-  placement: { label:'Placement completo', desc:'1°=10 · 2°=6 · 3°=3 · 4°=1',       fn: (place, pod) => ({1:10,2:6,3:3,4:1}[place]||0) },
-  cedh:      { label:'cEDH (eliminaciones)',desc:'1pt/eliminación + 1pt ganar mesa',  fn: null }, // handled separately
-  winner:    { label:'Solo victoria',      desc:'1°=1pt · resto=0',                  fn: (place, pod) => place===1?1:0 }
+const CMD_PTS = {
+  standard:  (place, size) => place===1?3:place===2&&size>=3?1:0,
+  placement: (place, size) => size===2?[5,1][place-1]:size===3?[10,4,1][place-1]:[10,6,3,1][place-1]||0,
+  cedh:      () => 0, // puntos por kills, calculado aparte
+  winner:    (place) => place===1?1:0
+};
+const CMD_PTS_DESC = {
+  standard:  '1°=3pts · 2°=1pt · resto=0',
+  placement: '1°=10 · 2°=6 · 3°=3 · 4°=1',
+  cedh:      '1pt/eliminación + 1pt ganar mesa',
+  winner:    'Solo victoria: 1°=1pt'
 };
 
-function getPts(system, place, podSize) {
-  const s = POINTS_SYSTEMS[system] || POINTS_SYSTEMS.standard;
-  if (!s.fn) return 0; // cEDH handled separately
-  // Adjust for smaller pods
-  if (system === 'standard') return place===1?3:place===2&&podSize>=3?1:0;
-  if (system === 'placement') {
-    if (podSize === 2) return place===1?5:1;
-    if (podSize === 3) return {1:10,2:4,3:1}[place]||0;
-    return {1:10,2:6,3:3,4:1}[place]||0;
-  }
-  return s.fn(place, podSize);
-}
-
+// ── VISTA ADMIN ───────────────────────────────────────────
 function renderCommanderView() {
-  const t = currentTournament;
-  const players = tournamentPlayers;
-  const owner = isOwner();
-  const totalRounds = t.total_rounds || 3;
-  const roundsDone  = t.current_round || 0;
-  const roundsLeft  = totalRounds - roundsDone;
-  const ptsSystem   = t.points_system || 'standard';
-  const podCount    = Math.ceil(players.length / 4);
-  const sys         = POINTS_SYSTEMS[ptsSystem] || POINTS_SYSTEMS.standard;
+  const t = currentTournament, players = tournamentPlayers, owner = isOwner();
+  const totalRounds = t.total_rounds||3, roundsDone = t.current_round||0;
+  const roundsLeft = totalRounds - roundsDone;
+  const ptsSystem = t.points_system||'standard';
 
   document.getElementById('tournament-content').innerHTML = `
     <div class="stats-row">
       <div class="stat-box"><div class="stat-val" style="color:var(--magic)">${players.length}</div><div class="stat-lbl">Jugadores</div></div>
       <div class="stat-box"><div class="stat-val">${roundsDone}/${totalRounds}</div><div class="stat-lbl">Rondas</div></div>
-      <div class="stat-box"><div class="stat-val">${podCount}</div><div class="stat-lbl">Pods</div></div>
+      <div class="stat-box"><div class="stat-val">${players.filter(p=>(p.losses||0)===0&&roundsDone>0).length||'—'}</div><div class="stat-lbl">Invictos</div></div>
     </div>
 
-    <!-- Players -->
+    <!-- Jugadores -->
     <div class="section">
       <div class="section-head">
         <span class="section-title">🧙 Jugadores (${players.length})</span>
-        ${owner && t.status !== 'finished' ? `<div style="display:flex;gap:6px">
-          ${t.status === 'upcoming'
-            ? `<button class="btn btn-primary btn-sm" onclick="startCommander()">▶ Iniciar</button>`
-            : roundsLeft > 0
-            ? `<button class="btn btn-sm" onclick="generateCommanderPods()">🔀 Ronda ${roundsDone+1}</button>`
-            : `<button class="btn btn-sm btn-cream" onclick="setTournamentStatus('finished')">🏆 Finalizar</button>`}
+        ${owner && t.status!=='finished' ? `<div style="display:flex;gap:6px">
+          ${t.status==='upcoming'
+            ? `<button class="btn btn-primary btn-sm" onclick="startCommander()">▶ Iniciar torneo</button>`
+            : roundsLeft>0
+            ? `<button class="btn btn-sm" onclick="generateAndShowPods()">🔀 Ronda ${roundsDone+1}</button>`
+            : `<button class="btn btn-cream btn-sm" onclick="closeCommander()">🏆 Finalizar</button>`}
         </div>` : ''}
       </div>
       <div class="section-body">
-        ${owner && t.status !== 'finished' ? `
-        <div class="add-row" style="margin-bottom:10px">
-          <input class="input" id="cmdr-player-name" type="text" placeholder="Agregar jugador manualmente"
-            onkeydown="if(event.key==='Enter')addPlayer('cmdr-player-name')">
-          <button class="btn" onclick="addPlayer('cmdr-player-name')">+ Agregar</button>
-        </div>` : ''}
+        ${owner && t.status!=='finished' ? `
+          <div class="add-row" style="margin-bottom:10px">
+            <input class="input" id="cmdr-pname" type="text" placeholder="Agregar jugador manualmente"
+              onkeydown="if(event.key==='Enter')addPlayer('cmdr-pname')">
+            <button class="btn" onclick="addPlayer('cmdr-pname')">+ Agregar</button>
+          </div>` : ''}
         ${renderJoinButton()}
         <div class="chips">
-          ${players.map(p => `
+          ${players.map(p=>`
             <div class="chip">
-              ${p.user_id ? '👤' : '🤖'} ${escHtml(p.name)}
-              ${owner && t.status !== 'finished' ? `<button class="chip-remove" onclick="removePlayer('${p.id}')">×</button>` : ''}
+              ${p.user_id?'👤':'🤖'} ${escHtml(p.name)}
+              ${(p.losses||0)===0&&roundsDone>0?'<span style="color:var(--green);font-size:10px">●</span>':''}
+              ${owner&&t.status!=='finished'?`<button class="chip-remove" onclick="removePlayer('${p.id}')">×</button>`:''}
             </div>`).join('')}
-          ${players.length === 0 ? '<span style="color:var(--muted);font-size:13px">Sin jugadores aún</span>' : ''}
+          ${players.length===0?'<span style="color:var(--muted);font-size:13px">Sin jugadores</span>':''}
         </div>
-        ${players.length > 0 ? `
-        <p style="font-size:12px;color:var(--muted);margin-top:6px">
-          ${podCount} pod(s) · ${totalRounds} rondas · <strong style="color:var(--magic)">${sys.desc}</strong>
-        </p>` : ''}
+        ${players.length>0?`<p style="font-size:12px;color:var(--muted);margin-top:6px">
+          ${Math.ceil(players.length/4)} pod(s) · ${totalRounds} rondas · <strong style="color:var(--magic)">${CMD_PTS_DESC[ptsSystem]}</strong>
+        </p>`:''}
       </div>
     </div>
 
-    <!-- Pods -->
+    <!-- Pods de la ronda actual -->
     <div class="section">
       <div class="section-head">
-        <span class="section-title">🎯 Pods — Ronda ${roundsDone > 0 ? roundsDone : '—'}</span>
-        ${owner && t.status === 'active' && roundsLeft > 0
-          ? `<button class="btn btn-sm" onclick="saveCommanderResults()">💾 Guardar ronda</button>` : ''}
+        <span class="section-title">🎯 Pods — Ronda ${roundsDone>0?roundsDone:'—'}</span>
+        ${owner&&t.status==='active'?`<button class="btn btn-primary btn-sm" onclick="confirmRoundAndAdvance()">✅ Confirmar ronda</button>`:''}
       </div>
       <div class="section-body" id="cmdr-pods-body">
-        <div class="empty-state" style="padding:20px">
-          <div class="empty-icon">🎲</div>
-          <p>${t.status === 'upcoming' ? 'Inicia el torneo para generar pods'
-              : roundsLeft <= 0 ? '¡Todas las rondas completadas!'
-              : 'Presiona el botón de ronda para generar pods'}</p>
+        <div class="empty-state" style="padding:16px">
+          ${t.status==='upcoming'?'Inicia el torneo para generar pods':roundsLeft<=0?'Todas las rondas completadas':'Generando pods...'}
         </div>
       </div>
     </div>
 
-    <!-- Standings -->
+    <!-- Clasificación -->
     <div class="section">
       <div class="section-head"><span class="section-title">🏆 Clasificación</span></div>
-      <div class="section-body" id="cmdr-standings-body">
-        ${renderCommanderStandings(players)}
-      </div>
+      <div class="section-body" id="cmdr-standings-body">${renderCommanderStandings(players)}</div>
     </div>
   `;
 
-  loadCommanderPods();
+  if (roundsDone>0) loadAndShowCurrentPods();
 }
 
+// ── INICIAR Y GENERAR PODS ────────────────────────────────
 async function startCommander() {
-  if (tournamentPlayers.length < 2) { showToast('Necesitas al menos 2 jugadores'); return; }
-  await setTournamentStatus('active');
+  if (tournamentPlayers.length<2) { showToast('Necesitas al menos 2 jugadores'); return; }
+  await _supabase.from('tournaments').update({status:'active'}).eq('id',currentTournament.id);
+  currentTournament.status='active';
   AudioFX.roundStart();
-  await generateCommanderPods();
+  await generateAndShowPods();
 }
 
-function generateCommanderPods() {
-  const players = tournamentPlayers;
-  if (players.length < 2) { showToast('Necesitas al menos 2 jugadores'); return; }
+async function generateAndShowPods() {
+  const t = currentTournament;
+  const totalRounds = t.total_rounds||3;
+  if ((t.current_round||0) >= totalRounds) { showToast('Ya se jugaron todas las rondas'); return; }
 
-  // Ordenar por puntos desc, desempate por wins, luego aleatorio
-  const sorted = [...players].sort((a, b) =>
-    (b.points - a.points) || (b.wins - a.wins) || (Math.random() - 0.5)
-  );
-
-  const pods = [];
-  for (let i = 0; i < sorted.length; i += 4) {
-    const chunk = sorted.slice(i, Math.min(i + 4, sorted.length));
-    if (pods.length > 0 && chunk.length === 1) {
-      pods[pods.length - 1].push(chunk[0]);
-    } else {
-      pods.push(chunk);
-    }
+  // Verificar ronda anterior completa
+  if ((t.current_round||0)>0) {
+    const {data:pending} = await _supabase.from('pod_sessions').select('id')
+      .eq('tournament_id',t.id).eq('round',t.current_round).eq('is_confirmed',false);
+    if (pending&&pending.length>0) { showToast(`Faltan ${pending.length} pod(s) por confirmar`); return; }
   }
 
-  window._cmdrCurrentPods = pods;
-  renderCommanderPodsUI(pods);
+  // Ordenar por puntos (mejores juntos), desempate aleatorio
+  const sorted = [...tournamentPlayers].sort((a,b)=>(b.points-a.points)||(b.wins-a.wins)||(Math.random()-.5));
+  const newRound = (t.current_round||0)+1;
+  const pods = buildPods(sorted);
+
+  // Guardar pod_sessions en DB
+  for (let pi=0; pi<pods.length; pi++) {
+    const pod = pods[pi];
+    await _supabase.from('pod_sessions').upsert({
+      tournament_id: t.id,
+      round: newRound,
+      pod_number: pi+1,
+      player_ids: JSON.stringify(pod.map(p=>p.id)),
+      player_names: JSON.stringify(pod.map(p=>p.name)),
+      result_data: null,
+      is_confirmed: false
+    }, {onConflict:'tournament_id,round,pod_number'});
+  }
+
+  await _supabase.from('tournaments').update({current_round:newRound}).eq('id',t.id);
+  currentTournament.current_round = newRound;
+
+  AudioFX.roundStart();
+  showToast(`Ronda ${newRound}/${totalRounds} generada ✓`);
+  await loadPlayers();
+  renderCommanderView();
 }
 
-function renderCommanderPodsUI(pods) {
+function buildPods(sorted) {
+  const pods = [];
+  for (let i=0; i<sorted.length; i+=4) {
+    const chunk = sorted.slice(i, Math.min(i+4,sorted.length));
+    if (pods.length>0&&chunk.length===1) pods[pods.length-1].push(chunk[0]);
+    else pods.push(chunk);
+  }
+  return pods;
+}
+
+// ── CARGAR Y MOSTRAR PODS ────────────────────────────────
+async function loadAndShowCurrentPods() {
+  const {data:sessions} = await _supabase.from('pod_sessions').select('*')
+    .eq('tournament_id',currentTournament.id)
+    .eq('round',currentTournament.current_round)
+    .order('pod_number');
+
+  if (!sessions||!sessions.length) return;
+  window._cmdrSessions = sessions;
+  renderAdminPods(sessions);
+}
+
+function renderAdminPods(sessions) {
   const body = document.getElementById('cmdr-pods-body');
   if (!body) return;
+  const ptsSystem = currentTournament.points_system||'standard';
+  const isCEDH = ptsSystem==='cedh';
   const owner = isOwner();
-  const active = currentTournament.status === 'active';
-  const ptsSystem = currentTournament.points_system || 'standard';
-  const isCEDH = ptsSystem === 'cedh';
 
   body.innerHTML = `<div class="pod-grid">
-    ${pods.map((pod, pi) => `
-      <div class="pod-box">
-        <div class="pod-name">Pod ${pi+1} · ${pod.length} jugadores</div>
-        ${pod.map((p, si) => `
+    ${sessions.map((s,pi) => {
+      const playerIds = JSON.parse(s.player_ids||'[]');
+      const playerNames = JSON.parse(s.player_names||'[]');
+      const resultData = s.result_data ? JSON.parse(s.result_data) : null;
+      const confirmed = s.is_confirmed;
+
+      const players = playerIds.map((id,i)=>({id,name:playerNames[i]||'?'}));
+
+      return `<div class="pod-box" style="${confirmed?'border-color:var(--green)':''}">
+        <div class="pod-name" style="display:flex;align-items:center;justify-content:space-between">
+          <span>Pod ${s.pod_number} · ${players.length}p</span>
+          <span style="font-size:11px;color:${confirmed?'var(--green)':'var(--muted)'}">${confirmed?'✓ Confirmado':'Pendiente'}</span>
+        </div>
+        ${players.map((p,si)=>`
           <div class="pod-player-row">
             <div class="seat-num">${si+1}</div>
             <div class="pod-pname">${escHtml(p.name)}</div>
-            ${owner && active ? isCEDH
-              ? `<input class="score-in" id="cmdr-pod${pi}-elim${si}" type="number" min="0" max="3"
-                  placeholder="elim" style="width:48px;font-size:12px" title="Eliminaciones realizadas">`
-              : `<select class="place-sel" id="cmdr-pod${pi}-seat${si}">
+            ${owner&&!confirmed ? isCEDH
+              ? `<span style="font-size:11px;color:var(--muted)">${resultData?.[p.id]?.kills??'—'} kills</span>`
+              : `<select class="place-sel" id="admin-pod${pi}-seat${si}" onchange="saveAdminPlacement(${pi})">
                   <option value="">lugar</option>
-                  ${pod.map((_, i) => `<option value="${i+1}">${i+1}°</option>`).join('')}
+                  ${players.map((_,i)=>`<option value="${i+1}" ${resultData?.[p.id]?.place===i+1?'selected':''}>${i+1}°</option>`).join('')}
                 </select>`
-            : ''}
-          </div>
-        `).join('')}
-        <div style="margin-top:8px;font-size:11px;color:var(--muted)">
-          ${isCEDH
-            ? '1pt por eliminación + 1pt por ganar'
-            : pod.map((_, i) => `${i+1}°=${getPts(ptsSystem,i+1,pod.length)}pts`).join(' · ')}
-        </div>
-      </div>
-    `).join('')}
+            : `<span style="font-size:12px;color:var(--muted)">${isCEDH?(resultData?.[p.id]?.kills??0)+' kills':(resultData?.[p.id]?.place??'—')+'°'}</span>`}
+          </div>`).join('')}
+        ${owner&&!confirmed&&isCEDH?`
+          <div style="margin-top:8px">
+            ${players.map((p,si)=>`
+              <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+                <span style="font-size:12px;flex:1">${escHtml(p.name)}</span>
+                <input class="score-in" id="admin-pod${pi}-kills${si}" type="number" min="0" max="${players.length-1}"
+                  placeholder="kills" style="width:52px" value="${resultData?.[p.id]?.kills??''}"
+                  onchange="saveAdminCEDH(${pi})">
+              </div>`).join('')}
+          </div>` : ''}
+        ${owner&&!confirmed?`
+          <button class="btn btn-sm w-full" style="margin-top:8px;border-color:var(--green);color:var(--green)"
+            onclick="confirmPod(${pi})">✓ Confirmar pod</button>`:''}
+      </div>`;
+    }).join('')}
   </div>`;
 }
 
-async function loadCommanderPods() {
-  if (!currentTournament.current_round) return;
-  const { data } = await _supabase
-    .from('matches').select('*')
-    .eq('tournament_id', currentTournament.id)
-    .eq('match_type', 'commander')
-    .eq('round', currentTournament.current_round);
-  if (!data || !data.length) return;
-
-  const sorted = [...data].sort((a,b) => (a.pod_number||0) - (b.pod_number||0));
-  const pods = sorted.map(m => {
-    if (!m.players_data) return [];
-    return JSON.parse(m.players_data).map(id => tournamentPlayers.find(p => p.id === id)).filter(Boolean);
-  }).filter(p => p.length);
-
-  if (!pods.length) return;
-  window._cmdrCurrentPods = pods;
-  renderCommanderPodsUI(pods);
-
-  // Restaurar resultados guardados
-  const ptsSystem = currentTournament.points_system || 'standard';
-  const isCEDH = ptsSystem === 'cedh';
-  sorted.forEach((m, pi) => {
-    if (!m.result_data) return;
-    const results = JSON.parse(m.result_data);
-    const pod = pods[pi];
-    if (!pod) return;
-    pod.forEach((p, si) => {
-      if (isCEDH) {
-        const el = document.getElementById(`cmdr-pod${pi}-elim${si}`);
-        if (el && results[p.id] !== undefined) el.value = results[p.id];
-      } else {
-        const sel = document.getElementById(`cmdr-pod${pi}-seat${si}`);
-        if (sel && results[p.id]) sel.value = results[p.id];
-      }
-    });
-  });
+function saveAdminPlacement(podIdx) {
+  // Solo guarda localmente — se confirma con el botón
 }
 
-async function saveCommanderResults() {
-  const pods = window._cmdrCurrentPods;
-  if (!pods || !pods.length) { showToast('Genera los pods primero'); return; }
+async function saveAdminCEDH(podIdx) {
+  // Preview local
+}
 
-  const ptsSystem = currentTournament.points_system || 'standard';
-  const isCEDH = ptsSystem === 'cedh';
-  const newRound = (currentTournament.current_round || 0) + 1;
+async function confirmPod(podIdx) {
+  const sessions = window._cmdrSessions;
+  if (!sessions||!sessions[podIdx]) return;
+  const s = sessions[podIdx];
+  const ptsSystem = currentTournament.points_system||'standard';
+  const isCEDH = ptsSystem==='cedh';
+  const playerIds = JSON.parse(s.player_ids||'[]');
+  const playerNames = JSON.parse(s.player_names||'[]');
+  const players = playerIds.map((id,i)=>({id,name:playerNames[i]}));
+  const podSize = players.length;
+
+  let resultData = {};
 
   if (isCEDH) {
-    await saveCEDHResults(pods, newRound);
+    let maxKills = -1, winnerId = null;
+    players.forEach((p,si)=>{
+      const kills = parseInt(document.getElementById(`admin-pod${podIdx}-kills${si}`)?.value)||0;
+      resultData[p.id] = {kills, place:0};
+      if (kills>maxKills) { maxKills=kills; winnerId=p.id; }
+    });
+    // Ganador = más kills (desempate: el que mató al último)
+    resultData[winnerId].place = 1;
+    let place=2;
+    Object.keys(resultData).filter(id=>id!==winnerId)
+      .sort((a,b)=>resultData[b].kills-resultData[a].kills)
+      .forEach(id=>{ resultData[id].place=place++; });
   } else {
-    await savePlacementResults(pods, newRound, ptsSystem);
+    const places = players.map((_,si)=>parseInt(document.getElementById(`admin-pod${podIdx}-seat${si}`)?.value)||0);
+    if (places.some(v=>v===0)) { showToast(`Pod ${s.pod_number}: asigna todos los lugares`); return; }
+    if (new Set(places).size!==podSize) { showToast(`Pod ${s.pod_number}: lugares duplicados`); return; }
+    players.forEach((p,si)=>{ resultData[p.id]={place:places[si],kills:0}; });
   }
 
-  await _supabase.from('tournaments').update({ current_round: newRound }).eq('id', currentTournament.id);
-  currentTournament.current_round = newRound;
+  // Guardar en DB
+  await _supabase.from('pod_sessions').update({
+    result_data: JSON.stringify(resultData),
+    is_confirmed: true
+  }).eq('id',s.id);
+
+  // Actualizar puntos de jugadores
+  for (const p of players) {
+    const r = resultData[p.id];
+    const dbPlayer = tournamentPlayers.find(tp=>tp.id===p.id);
+    if (!dbPlayer) continue;
+    let pts = 0;
+    if (isCEDH) {
+      pts = (r.kills||0) + (r.place===1?1:0);
+    } else {
+      const fn = CMD_PTS[ptsSystem]||CMD_PTS.standard;
+      pts = fn(r.place,podSize);
+    }
+    await _supabase.from('players').update({
+      points: (dbPlayer.points||0)+pts,
+      wins:   (dbPlayer.wins||0)+(r.place===1?1:0)
+    }).eq('id',p.id);
+  }
+
+  AudioFX.tap();
+  showToast(`Pod ${s.pod_number} confirmado ✓`);
+  await loadPlayers();
+  await loadAndShowCurrentPods();
+
+  const sb=document.getElementById('cmdr-standings-body');
+  if(sb) sb.innerHTML=renderCommanderStandings(tournamentPlayers);
+}
+
+async function confirmRoundAndAdvance() {
+  const sessions = window._cmdrSessions||[];
+  const pending = sessions.filter(s=>!s.is_confirmed);
+  if (pending.length>0) { showToast(`Faltan ${pending.length} pod(s) por confirmar`); return; }
+
+  const totalRounds = currentTournament.total_rounds||3;
+  const roundsDone = currentTournament.current_round||0;
+
+  AudioFX.roundEnd();
+
+  if (roundsDone>=totalRounds) {
+    await closeCommander();
+  } else {
+    showToast(`Ronda ${roundsDone} completada — generando siguiente...`);
+    setTimeout(()=>generateAndShowPods(), 800);
+  }
+}
+
+async function closeCommander() {
+  await _supabase.from('tournaments').update({status:'finished'}).eq('id',currentTournament.id);
+  currentTournament.status='finished';
+  AudioFX.victory();
   await loadPlayers();
   renderCommanderView();
-
-  const totalRounds = currentTournament.total_rounds || 3;
-  const roundsLeft = totalRounds - newRound;
-  if (roundsLeft <= 0) {
-    AudioFX.victory();
-    showToast('✅ ¡Torneo completo!');
-    setTimeout(() => showWinnerPopup(tournamentPlayers), 600);
-  } else {
-    AudioFX.roundEnd();
-    showToast(`✅ Ronda ${newRound}/${totalRounds} · Quedan ${roundsLeft}`);
-  }
+  setTimeout(()=>showWinnerPopup(tournamentPlayers),600);
 }
 
-async function savePlacementResults(pods, newRound, ptsSystem) {
-  for (let pi = 0; pi < pods.length; pi++) {
-    const pod = pods[pi];
-    const places = pod.map((_, si) => parseInt(document.getElementById(`cmdr-pod${pi}-seat${si}`)?.value) || 0);
+// ── SESIÓN INDIVIDUAL DEL JUGADOR ────────────────────────
+async function openPlayerPodSession(tournamentId) {
+  // Buscar el pod del jugador en la ronda actual
+  const myPlayer = tournamentPlayers.find(p=>p.user_id===currentUser?.id);
+  if (!myPlayer) { showToast('No estás inscrito en este torneo'); return; }
 
-    if (places.some(v => v === 0)) { showToast(`Pod ${pi+1}: asigna todos los lugares`); return; }
-    if (new Set(places).size !== pod.length) { showToast(`Pod ${pi+1}: hay lugares duplicados`); return; }
+  const {data:sessions} = await _supabase.from('pod_sessions').select('*')
+    .eq('tournament_id',tournamentId)
+    .eq('round',currentTournament.current_round);
 
-    const resultData = {};
-    pod.forEach((p, si) => { resultData[p.id] = places[si]; });
+  if (!sessions||!sessions.length) { showToast('No hay ronda activa'); return; }
 
-    await _supabase.from('matches').upsert({
-      tournament_id: currentTournament.id,
-      round: newRound, pod_number: pi+1,
-      match_type: 'commander',
-      players_data: JSON.stringify(pod.map(p => p.id)),
-      result_data: JSON.stringify(resultData),
-      is_complete: true
-    }, { onConflict: 'tournament_id,round,pod_number' });
+  // Encontrar mi pod
+  const mySession = sessions.find(s=>{
+    const ids = JSON.parse(s.player_ids||'[]');
+    return ids.includes(myPlayer.id);
+  });
 
-    for (let si = 0; si < pod.length; si++) {
-      const p = pod[si];
-      const place = places[si];
-      const pts = getPts(ptsSystem, place, pod.length);
-      await _supabase.from('players').update({
-        points: (p.points||0) + pts,
-        wins:   (p.wins||0) + (place===1 ? 1 : 0)
-      }).eq('id', p.id);
-    }
-  }
+  if (!mySession) { showToast('No se encontró tu mesa'); return; }
+
+  // Cargar compañeros de mesa
+  const playerIds = JSON.parse(mySession.player_ids||'[]');
+  const playerNames = JSON.parse(mySession.player_names||'[]');
+  const podPlayers = playerIds.map((id,i)=>({id, name:playerNames[i]||'?'}));
+
+  startPlayerPodSession(currentTournament, mySession, myPlayer, podPlayers);
 }
 
-async function saveCEDHResults(pods, newRound) {
-  for (let pi = 0; pi < pods.length; pi++) {
-    const pod = pods[pi];
-    const elims = pod.map((_, si) => parseInt(document.getElementById(`cmdr-pod${pi}-elim${si}`)?.value) || 0);
-    const maxElims = Math.max(...elims);
-    const winnerId = pod[elims.indexOf(maxElims)]?.id;
-    const resultData = {};
-    pod.forEach((p, si) => { resultData[p.id] = elims[si]; });
+function startPlayerPodSession(tournament, session, myPlayer, podPlayers) {
+  const startLife = 40;
+  const lifePoints = {};
+  podPlayers.forEach(p=>{ lifePoints[p.id]=startLife; });
 
-    await _supabase.from('matches').upsert({
-      tournament_id: currentTournament.id,
-      round: newRound, pod_number: pi+1,
-      match_type: 'commander',
-      players_data: JSON.stringify(pod.map(p => p.id)),
-      result_data: JSON.stringify(resultData),
-      is_complete: true
-    }, { onConflict: 'tournament_id,round,pod_number' });
+  gameState = {
+    tournament, players: podPlayers, myPlayer, session,
+    lifePoints, commanderDmg: {}, kills: {}, eliminatedBy: null,
+    activeGame:'life', freeMode:false, startLife,
+    ptsSystem: tournament.points_system||'standard'
+  };
 
-    for (let si = 0; si < pod.length; si++) {
-      const p = pod[si];
-      const elimPts = elims[si];
-      const winPt   = p.id === winnerId ? 1 : 0;
-      await _supabase.from('players').update({
-        points: (p.points||0) + elimPts + winPt,
-        wins:   (p.wins||0) + winPt
-      }).eq('id', p.id);
-    }
-  }
+  // Init commander damage tracking
+  podPlayers.forEach(att=>{
+    gameState.commanderDmg[att.id]={};
+    podPlayers.forEach(vic=>{ if(att.id!==vic.id) gameState.commanderDmg[att.id][vic.id]=0; });
+  });
+
+  document.getElementById('game-title').textContent = `Pod ${session.pod_number} · R${session.round}`;
+  document.getElementById('game-player-name').textContent = myPlayer.name;
+  showScreen('screen-game');
+  renderPlayerPodSession();
 }
 
+function renderPlayerPodSession() {
+  const myId = gameState.myPlayer.id;
+  const isCEDH = gameState.ptsSystem==='cedh';
+  const content = document.getElementById('game-content');
+  content.style.padding = '8px 12px';
+
+  const tabs = isCEDH
+    ? [['life','❤️ Vida'],['cmdr','⚔️ Daño Cdr'],['cedh','💀 Kills'],['spin','🎲 Dados']]
+    : [['life','❤️ Vida'],['cmdr','⚔️ Daño Cdr'],['spin','🎲 Dados']];
+
+  content.innerHTML = `
+    <div class="game-tabs" style="margin-bottom:8px">
+      ${tabs.map(([id,label])=>
+        `<button class="game-tab ${gameState.activeGame===id?'active':''}"
+          onclick="switchPodTab('${id}')">${label}</button>`
+      ).join('')}
+    </div>
+    <div id="pod-tab-body" style="height:calc(100vh-160px);overflow-y:auto"></div>
+  `;
+  renderPodTab(gameState.activeGame);
+}
+
+function switchPodTab(tab) {
+  AudioFX.tap();
+  gameState.activeGame=tab;
+  document.querySelectorAll('.game-tab').forEach(b=>{
+    b.classList.toggle('active',b.textContent.includes(
+      tab==='life'?'❤️':tab==='cmdr'?'⚔️':tab==='cedh'?'💀':'🎲'
+    ));
+  });
+  renderPodTab(tab);
+}
+
+function renderPodTab(tab) {
+  const el = document.getElementById('pod-tab-body');
+  if (!el) return;
+  if (tab==='life') renderMyLifeTab(el);
+  else if (tab==='cmdr') renderMyCmdrDmgTab(el);
+  else if (tab==='cedh') renderMyCEDHKillsTab(el);
+  else if (tab==='spin') renderSpinContent(el);
+}
+
+// Mi vida + vida de compañeros (solo ver)
+function renderMyLifeTab(el) {
+  const myId = gameState.myPlayer.id;
+  const players = gameState.players;
+  const startLife = gameState.startLife;
+
+  el.innerHTML = `<div style="display:grid;gap:10px">
+    ${players.map(p=>{
+      const isMine = p.id===myId;
+      const life = gameState.lifePoints[p.id]??startLife;
+      const dangerClass = life<=5?'critical':life<=10?'danger':'';
+      return `<div class="life-counter ${isMine?'glow-pink':''}" style="padding:12px">
+        <div class="life-player">${escHtml(p.name)}${isMine?' (tú)':''}</div>
+        <div class="life-num ${dangerClass}" id="life-${p.id}" style="font-size:${isMine?'72px':'48px'}">${life}</div>
+        ${isMine?`
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:10px">
+          <button class="life-btn minus" style="width:100%;height:40px" onclick="changeMyLife(-5)">−5</button>
+          <button class="life-btn minus" style="width:100%;height:40px" onclick="changeMyLife(-1)">−1</button>
+          <button class="life-btn plus"  style="width:100%;height:40px" onclick="changeMyLife(+1)">+1</button>
+          <button class="life-btn plus"  style="width:100%;height:40px" onclick="changeMyLife(+5)">+5</button>
+        </div>
+        <div style="display:flex;gap:6px;margin-top:6px">
+          <input class="life-in" id="my-life-custom" type="number" placeholder="±" style="flex:1">
+          <button class="btn btn-sm" onclick="applyMyCustomLife()">Aplicar</button>
+          <button class="btn btn-sm btn-ghost" onclick="resetMyLife()">↺</button>
+        </div>`:''}
+      </div>`;
+    }).join('')}
+  </div>`;
+}
+
+function changeMyLife(delta) {
+  const myId = gameState.myPlayer.id;
+  gameState.lifePoints[myId]=(gameState.lifePoints[myId]??40)+delta;
+  const life=gameState.lifePoints[myId];
+  const el=document.getElementById('life-'+myId);
+  if(el){el.textContent=life;el.className='life-num'+(life<=5?' critical':life<=10?' danger':'');}
+  delta<0?(life<=5?AudioFX.danger():AudioFX.minus()):AudioFX.plus();
+  broadcastPodState();
+}
+
+function applyMyCustomLife() {
+  const val=parseInt(document.getElementById('my-life-custom')?.value);
+  if(!isNaN(val)){changeMyLife(val);document.getElementById('my-life-custom').value='';}
+}
+
+function resetMyLife() {
+  AudioFX.tap();
+  const myId=gameState.myPlayer.id;
+  gameState.lifePoints[myId]=gameState.startLife;
+  const el=document.getElementById('life-'+myId);
+  if(el){el.textContent=gameState.startLife;el.className='life-num';}
+}
+
+// Daño de comandante que YO he recibido de cada oponente
+function renderMyCmdrDmgTab(el) {
+  const myId=gameState.myPlayer.id;
+  const opponents=gameState.players.filter(p=>p.id!==myId);
+
+  el.innerHTML = `
+    <p style="font-size:12px;color:var(--muted);margin-bottom:10px">
+      Daño de comandante que has recibido. A 21 = eliminado.
+    </p>
+    <div class="cmdr-damage-grid" style="margin-bottom:16px">
+      ${opponents.map(att=>{
+        const dmg=gameState.commanderDmg[att.id]?.[myId]||0;
+        return `<div class="cmdr-dmg-row">
+          <div class="cmdr-dmg-name">De ${escHtml(att.name)}</div>
+          <div class="cmdr-dmg-val ${dmg>=16?'danger':''}" id="rcvd-${att.id}">${dmg}</div>
+          <div class="cmdr-dmg-btns">
+            <button class="dmg-btn minus" onclick="changeDmgReceived('${att.id}',-1)">−</button>
+            <button class="dmg-btn plus" onclick="changeDmgReceived('${att.id}',+1)">+</button>
+            <button class="dmg-btn plus" onclick="changeDmgReceived('${att.id}',+2)">+2</button>
+          </div>
+          ${dmg>=21?'<span style="color:var(--red);font-size:11px;font-weight:700">💀 FATAL</span>':''}
+        </div>`;
+      }).join('')}
+    </div>
+    <hr>
+    <p style="font-size:12px;color:var(--muted);margin:10px 0">Daño que tú has hecho con tu comandante:</p>
+    <div class="cmdr-damage-grid">
+      ${opponents.map(vic=>{
+        const dmg=gameState.commanderDmg[myId]?.[vic.id]||0;
+        return `<div class="cmdr-dmg-row">
+          <div class="cmdr-dmg-name">A ${escHtml(vic.name)}</div>
+          <div class="cmdr-dmg-val ${dmg>=16?'danger':''}" id="sent-${vic.id}">${dmg}</div>
+          <div class="cmdr-dmg-btns">
+            <button class="dmg-btn minus" onclick="changeDmgSent('${vic.id}',-1)">−</button>
+            <button class="dmg-btn plus" onclick="changeDmgSent('${vic.id}',+1)">+</button>
+            <button class="dmg-btn plus" onclick="changeDmgSent('${vic.id}',+2)">+2</button>
+          </div>
+          ${dmg>=21?'<span style="color:var(--std);font-size:11px;font-weight:700">💥 21+</span>':''}
+        </div>`;
+      }).join('')}
+    </div>`;
+}
+
+function changeDmgReceived(attId, delta) {
+  const myId=gameState.myPlayer.id;
+  if(!gameState.commanderDmg[attId]) gameState.commanderDmg[attId]={};
+  const next=Math.max(0,(gameState.commanderDmg[attId][myId]||0)+delta);
+  gameState.commanderDmg[attId][myId]=next;
+  const el=document.getElementById('rcvd-'+attId);
+  if(el){el.textContent=next;el.className='cmdr-dmg-val'+(next>=16?' danger':'');}
+  if(next>=21){AudioFX.danger();showToast('💀 ¡Daño de comandante fatal!');}
+  else delta>0?AudioFX.minus():AudioFX.tap();
+  broadcastPodState();
+}
+
+function changeDmgSent(vicId, delta) {
+  const myId=gameState.myPlayer.id;
+  if(!gameState.commanderDmg[myId]) gameState.commanderDmg[myId]={};
+  const next=Math.max(0,(gameState.commanderDmg[myId][vicId]||0)+delta);
+  gameState.commanderDmg[myId][vicId]=next;
+  const el=document.getElementById('sent-'+vicId);
+  if(el){el.textContent=next;el.className='cmdr-dmg-val'+(next>=16?' danger':'');}
+  delta>0?AudioFX.plus():AudioFX.tap();
+  broadcastPodState();
+}
+
+// Registro de kills cEDH
+function renderMyCEDHKillsTab(el) {
+  const myId=gameState.myPlayer.id;
+  const opponents=gameState.players.filter(p=>p.id!==myId);
+  const myKills=gameState.kills||{};
+
+  el.innerHTML=`
+    <p style="font-size:13px;color:var(--muted);margin-bottom:12px">
+      Marca a quién eliminaste. Esto se envía al admin para validar.
+    </p>
+    <div style="display:grid;gap:8px">
+      ${opponents.map(opp=>{
+        const killed=myKills[opp.id]||false;
+        return `<div style="display:flex;align-items:center;gap:10px;padding:12px;
+          background:${killed?'rgba(61,212,160,0.1)':'var(--dark3)'};
+          border:1px solid ${killed?'var(--green)':'var(--border)'};border-radius:var(--radius)">
+          <div style="flex:1;font-size:14px;font-weight:${killed?'700':'400'};
+            color:${killed?'var(--green)':'var(--text)'}">${escHtml(opp.name)}</div>
+          ${killed
+            ?`<span style="color:var(--green);font-size:12px">💀 Eliminado</span>
+              <button class="btn btn-xs btn-ghost" onclick="toggleKill('${opp.id}',false)">Deshacer</button>`
+            :`<button class="btn btn-sm" style="border-color:var(--red);color:var(--red)"
+                onclick="toggleKill('${opp.id}',true)">💀 Eliminé a ${escHtml(opp.name)}</button>`}
+        </div>`;
+      }).join('')}
+    </div>
+    <hr style="margin:14px 0">
+    <div style="padding:12px;background:var(--dark3);border-radius:var(--radius)">
+      <p style="font-size:12px;color:var(--muted);margin-bottom:8px">¿Quién me eliminó a mí?</p>
+      ${gameState.eliminatedBy
+        ?`<div style="color:var(--red);font-size:13px;font-weight:600">
+            💀 ${escHtml(gameState.players.find(p=>p.id===gameState.eliminatedBy)?.name||'?')}
+            <button class="btn btn-xs btn-ghost" style="margin-left:8px" onclick="setEliminatedBy(null)">Deshacer</button>
+          </div>`
+        :`<div style="display:flex;flex-wrap:wrap;gap:6px">
+            ${opponents.map(opp=>
+              `<button class="btn btn-sm" onclick="setEliminatedBy('${opp.id}')">
+                ${escHtml(opp.name)} me eliminó
+              </button>`
+            ).join('')}
+            <button class="btn btn-sm btn-ghost" onclick="setEliminatedBy('survived')">Sobreviví / Gané</button>
+          </div>`}
+    </div>
+    <button class="btn btn-primary w-full" style="margin-top:14px" onclick="submitCEDHReport()">
+      📤 Enviar reporte al admin
+    </button>`;
+}
+
+function toggleKill(oppId, killed) {
+  AudioFX.tap();
+  if(!gameState.kills) gameState.kills={};
+  gameState.kills[oppId]=killed;
+  renderPodTab('cedh');
+}
+
+function setEliminatedBy(playerId) {
+  AudioFX.tap();
+  gameState.eliminatedBy=playerId;
+  renderPodTab('cedh');
+}
+
+async function submitCEDHReport() {
+  const myId=gameState.myPlayer.id;
+  const kills=gameState.kills||{};
+  const killCount=Object.values(kills).filter(Boolean).length;
+  const survived=gameState.eliminatedBy==='survived'||gameState.eliminatedBy===null;
+
+  // Guardar en pod_session como reporte parcial
+  const {data:session}=await _supabase.from('pod_sessions').select('*')
+    .eq('id',gameState.session.id).single();
+
+  let reportData=session.result_data?JSON.parse(session.result_data):{};
+  reportData[myId]={kills:killCount, eliminatedBy:gameState.eliminatedBy, survived};
+
+  await _supabase.from('pod_sessions').update({
+    result_data:JSON.stringify(reportData)
+  }).eq('id',gameState.session.id);
+
+  AudioFX.roundEnd();
+  showToast('✓ Reporte enviado al admin');
+}
+
+// ── BROADCAST REALTIME ENTRE JUGADORES DEL POD ───────────
+async function broadcastPodState() {
+  if(!gameState.session) return;
+  const ch=_supabase.channel(`pod-${gameState.session.id}`);
+  ch.send({type:'broadcast',event:'pod_state',payload:{
+    lifePoints:gameState.lifePoints,
+    commanderDmg:gameState.commanderDmg,
+    senderId:currentUser?.id
+  }});
+}
+
+function subscribePodBroadcast(sessionId) {
+  _supabase.channel(`pod-${sessionId}`)
+    .on('broadcast',{event:'pod_state'},(payload)=>{
+      if(payload.payload.senderId===currentUser?.id) return;
+      const myId=gameState.myPlayer?.id;
+      // Actualizar vidas de compañeros
+      Object.entries(payload.payload.lifePoints||{}).forEach(([pid,life])=>{
+        if(pid!==myId){
+          gameState.lifePoints[pid]=life;
+          const el=document.getElementById('life-'+pid);
+          if(el) el.textContent=life;
+        }
+      });
+      // Actualizar daño de comandante recibido
+      Object.entries(payload.payload.commanderDmg||{}).forEach(([att,victims])=>{
+        if(att!==myId) gameState.commanderDmg[att]=victims;
+        if(gameState.activeGame==='cmdr') renderPodTab('cmdr');
+      });
+    }).subscribe();
+}
+
+// ── STANDINGS ────────────────────────────────────────────
 function renderCommanderStandings(players) {
-  if (!players.length) return '<div class="empty-state" style="padding:16px">Sin datos aún</div>';
-  const sorted = [...players].sort((a,b) => (b.points-a.points)||(b.wins-a.wins));
-  const rankIcon = ['👑','🥈','🥉'];
-  const sys = POINTS_SYSTEMS[currentTournament?.points_system] || POINTS_SYSTEMS.standard;
-
+  if(!players.length) return '<div class="empty-state" style="padding:16px">Sin datos aún</div>';
+  const sorted=[...players].sort((a,b)=>(b.points-a.points)||(b.wins-a.wins));
+  const rankIcon=['👑','🥈','🥉'];
+  const sys=currentTournament?.points_system||'standard';
   return `<table class="t-table">
     <thead><tr><th>#</th><th>Jugador</th><th>Victorias</th><th>Puntos</th></tr></thead>
-    <tbody>
-      ${sorted.map((p,i) => `
-        <tr class="${i===0?'rank-1':''}">
-          <td>${rankIcon[i]||i+1}</td>
-          <td>${escHtml(p.name)}</td>
-          <td><span class="pill pill-w">${p.wins||0}</span></td>
-          <td><strong style="color:var(--magic)">${p.points||0}</strong></td>
-        </tr>`).join('')}
+    <tbody>${sorted.map((p,i)=>`
+      <tr class="${i===0?'rank-1':''}">
+        <td>${rankIcon[i]||i+1}</td>
+        <td>${escHtml(p.name)}${(p.losses||0)===0&&(currentTournament?.current_round||0)>0?
+          ' <span style="color:var(--green);font-size:10px">●</span>':''}</td>
+        <td><span class="pill pill-w">${p.wins||0}</span></td>
+        <td><strong style="color:var(--magic)">${p.points||0}</strong></td>
+      </tr>`).join('')}
     </tbody>
   </table>
-  <p style="font-size:11px;color:var(--muted);margin-top:8px">${sys.label}: ${sys.desc} · Desempate por win% de oponentes</p>`;
+  <p style="font-size:11px;color:var(--muted);margin-top:8px">${CMD_PTS_DESC[sys]}</p>`;
 }
