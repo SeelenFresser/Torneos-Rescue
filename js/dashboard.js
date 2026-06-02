@@ -8,7 +8,8 @@ let editingTournamentId = null;
 function selectType(type) {
   selectedType = type;
   document.querySelectorAll('.type-card').forEach(c => c.classList.toggle('active', c.dataset.type === type));
-  document.getElementById('nt-format-row').style.display = type !== 'commander' ? '' : 'none';
+  document.getElementById('nt-format-row').style.display    = type !== 'commander' ? '' : 'none';
+  document.getElementById('nt-commander-row').style.display = type === 'commander'  ? '' : 'none';
 }
 
 function openNewTournamentModal() {
@@ -16,6 +17,7 @@ function openNewTournamentModal() {
   selectedType = 'commander';
   document.querySelectorAll('.type-card').forEach(c => c.classList.toggle('active', c.dataset.type === 'commander'));
   document.getElementById('nt-format-row').style.display = 'none';
+  document.getElementById('nt-commander-row').style.display = '';
   ['nt-name','nt-desc','nt-date','nt-time'].forEach(id => document.getElementById(id).value = '');
   document.querySelector('input[name="nt-format"][value="swiss"]').checked = true;
   document.querySelector('#modal-new-tournament .modal-header h3').textContent = 'Nuevo Torneo';
@@ -79,12 +81,17 @@ async function createTournament() {
       ? 'pods'
       : document.querySelector('input[name="nt-format"]:checked').value;
 
+    const total_rounds   = selectedType === 'commander' ? parseInt(document.getElementById('nt-rounds').value) : null;
+    const points_system  = selectedType === 'commander' ? document.getElementById('nt-points').value : null;
+
     const { error } = await _supabase.from('tournaments').insert({
       name, type: selectedType, format, description,
       owner_id: currentUser.id,
       status: 'upcoming',
       current_round: 0,
-      tournament_date
+      tournament_date,
+      total_rounds,
+      points_system
     });
     if (error) { showToast('Error: ' + error.message); return; }
     closeModal('modal-new-tournament');
