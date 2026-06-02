@@ -36,6 +36,7 @@ async function loadPlayers() {
   tournamentPlayers = data || [];
 }
 
+// Admin agrega jugador manualmente (sin cuenta)
 async function addPlayer(nameInputId, beyInputId) {
   const nameEl = document.getElementById(nameInputId);
   const name = nameEl.value.trim();
@@ -46,6 +47,7 @@ async function addPlayer(nameInputId, beyInputId) {
 
   const { error } = await _supabase.from('players').insert({
     tournament_id: currentTournament.id,
+    user_id: null, // sin cuenta — jugador manual
     name, bey_name: bey_name || null,
     wins:0, losses:0, draws:0, points:0, game_wins:0, game_losses:0
   });
@@ -53,6 +55,7 @@ async function addPlayer(nameInputId, beyInputId) {
   nameEl.value = ''; if (beyEl) beyEl.value = '';
   await loadPlayers();
   refreshCurrentView();
+  showToast(`${name} agregado ✓`);
 }
 
 async function removePlayer(playerId) {
@@ -77,19 +80,16 @@ function refreshCurrentView() {
 }
 
 function isOwner() {
-  return currentUser && currentTournament && currentTournament.owner_id === currentUser.id;
+  return currentUser && currentTournament && (currentTournament.owner_id === currentUser.id || isAdmin);
 }
 
-// Opens the player game sub-app for this tournament
 function enterGameApp(tournamentId) {
   const myPlayer = tournamentPlayers.find(p => p.user_id === currentUser.id);
-  if (!myPlayer && !isAdmin) {
-    showToast('No estás inscrito en este torneo'); return;
-  }
+  if (!myPlayer && !isAdmin) { showToast('No estás inscrito en este torneo'); return; }
   startGameApp(currentTournament, tournamentPlayers, myPlayer || tournamentPlayers[0]);
 }
 
-// Admin panel controls rendered at top of tournament view
+// Admin panel controls
 function renderTournamentControls() {
   if (!isOwner()) return '';
   const t = currentTournament;
@@ -97,7 +97,7 @@ function renderTournamentControls() {
     ? `<button class="btn btn-cream btn-sm" onclick="setTournamentStatus('active')">▶ Iniciar torneo</button>`
     : t.status === 'active'
     ? `<button class="btn btn-danger btn-sm" onclick="setTournamentStatus('finished')">■ Finalizar</button>`
-    : `<span style="color:var(--muted);font-size:12px">Torneo finalizado</span>`;
+    : `<span style="color:var(--muted);font-size:12px">✓ Finalizado</span>`;
   return `<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
     ${statusBtns}
     <button class="btn btn-sm" onclick="enterGameApp('${t.id}')">🎮 Entrar como jugador</button>
@@ -126,4 +126,15 @@ function renderJoinButton() {
     </div>`;
   }
   return '';
+}
+
+// Admin: render add player row (manual, sin cuenta)
+function renderAddPlayerRow(nameId, beyId) {
+  if (!isOwner()) return '';
+  const isBey = currentTournament?.type === 'beyblade';
+  return `<div class="add-row" style="margin-bottom:10px">
+    <input class="input" id="${nameId}" type="text" placeholder="Nombre del jugador" onkeydown="if(event.key==='Enter')addPlayer('${nameId}'${beyId ? `,'${beyId}'` : ''})">
+    ${isBey && beyId ? `<input class="input" id="${beyId}" type="text" placeholder="Beyblade (opcional)">` : ''}
+    <button class="btn" onclick="addPlayer('${nameId}'${beyId ? `,'${beyId}'` : ''})">+ Agregar</button>
+  </div>`;
 }
