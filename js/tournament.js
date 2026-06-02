@@ -1,196 +1,140 @@
 // =============================================
-// DASHBOARD
+// TOURNAMENT VIEW
 // =============================================
-let selectedType = 'commander';
-let joiningTournamentId = null;
-let editingTournamentId = null;
+let currentTournament = null;
+let tournamentPlayers = [];
 
-function selectType(type) {
-  selectedType = type;
-  document.querySelectorAll('.type-card').forEach(c => c.classList.toggle('active', c.dataset.type === type));
-  document.getElementById('nt-format-row').style.display = type !== 'commander' ? '' : 'none';
+async function openTournament(id) {
+  showScreen('screen-tournament');
+  document.getElementById('tournament-content').innerHTML = '<div class="empty-state">Cargando...</div>';
+
+  const { data: t, error } = await _supabase.from('tournaments').select('*').eq('id', id).single();
+  if (error) { showToast('Error cargando torneo'); return; }
+
+  currentTournament = t;
+  document.getElementById('t-name-nav').textContent = t.name;
+  const badgeMap = { commander:'badge-magic 🧙 Commander', standard:'badge-std 🃏 Standard', beyblade:'badge-bey 🌀 Beyblade' };
+  const [cls, ...lbl] = (badgeMap[t.type] || 'badge-admin Torneo').split(' ');
+  const badge = document.getElementById('t-type-badge');
+  badge.textContent = lbl.join(' ');
+  badge.className = 'badge ' + cls;
+
+  await loadPlayers();
+
+  if (t.type === 'commander') renderCommanderView();
+  else if (t.format === 'swiss') renderSwissView();
+  else renderEliminationView();
+
+  startRealtimeSubscription(id);
 }
 
-function openNewTournamentModal() {
-  editingTournamentId = null;
-  selectedType = 'commander';
-  document.querySelectorAll('.type-card').forEach(c => c.classList.toggle('active', c.dataset.type === 'commander'));
-  document.getElementById('nt-format-row').style.display = 'none';
-  ['nt-name','nt-desc','nt-date','nt-time'].forEach(id => document.getElementById(id).value = '');
-  document.querySelector('input[name="nt-format"][value="swiss"]').checked = true;
-  document.querySelector('#modal-new-tournament .modal-header h3').textContent = 'Nuevo Torneo';
-  document.getElementById('nt-type-selector').style.pointerEvents = '';
-  openModal('modal-new-tournament');
+async function loadPlayers() {
+  const { data } = await _supabase
+    .from('players').select('*')
+    .eq('tournament_id', currentTournament.id)
+    .order('created_at', { ascending: true });
+  tournamentPlayers = data || [];
 }
 
-function openEditTournamentModal(id, event) {
-  event.stopPropagation();
-  const t = window._tournamentsCache?.find(t => t.id === id);
-  if (!t) return;
-  editingTournamentId = id;
-  selectedType = t.type;
+// Admin agrega jugador manualmente (sin cuenta)
+async function addPlayer(nameInputId, beyInputId) {
+  const nameEl = document.getElementById(nameInputId);
+  const name = nameEl.value.trim();
+  if (!name) return;
+  const beyEl = beyInputId ? document.getElementById(beyInputId) : null;
+  const bey_name = beyEl ? beyEl.value.trim() : null;
+  if (tournamentPlayers.some(p => p.name.toLowerCase() === name.toLowerCase())) { showToast('Jugador ya registrado'); return; }
 
-  document.querySelector('#modal-new-tournament .modal-header h3').textContent = 'Editar Torneo';
-  document.getElementById('nt-name').value = t.name;
-  document.getElementById('nt-desc').value = t.description || '';
-
-  if (t.tournament_date) {
-    const d = new Date(t.tournament_date);
-    const yyyy=d.getFullYear(),mm=String(d.getMonth()+1).padStart(2,'0'),dd=String(d.getDate()).padStart(2,'0'); document.getElementById('nt-date').value = yyyy+'-'+mm+'-'+dd;
-    const hh=String(d.getHours()).padStart(2,'0'),min=String(d.getMinutes()).padStart(2,'0'); document.getElementById('nt-time').value = hh+':'+min;
-  }
-
-  document.querySelectorAll('.type-card').forEach(c => c.classList.toggle('active', c.dataset.type === t.type));
-  document.getElementById('nt-format-row').style.display = t.type !== 'commander' ? '' : 'none';
-  document.getElementById('nt-type-selector').style.pointerEvents = 'none'; // no cambiar tipo al editar
-  openModal('modal-new-tournament');
-}
-
-async function createTournament() {
-  const name = document.getElementById('nt-name').value.trim();
-  if (!name) { showToast('Ponle un nombre al torneo'); return; }
-  const date = document.getElementById('nt-date').value;
-  const time = document.getElementById('nt-time').value;
-  if (!date) { showToast('Pon la fecha del torneo'); return; }
-
-  const tournament_date = time ? `${date}T${time}:00` : `${date}T00:00:00`;
-  const description = document.getElementById('nt-desc').value.trim();
-
-  if (editingTournamentId) {
-    // EDITAR
-    const { error } = await _supabase.from('tournaments').update({
-      name, description, tournament_date
-    }).eq('id', editingTournamentId);
-    if (error) { showToast('Error: ' + error.message); return; }
-    closeModal('modal-new-tournament');
-    showToast('Torneo actualizado ✓');
-  } else {
-    // CREAR
-    const format = selectedType === 'commander'
-      ? 'pods'
-      : document.querySelector('input[name="nt-format"]:checked').value;
-
-    const { error } = await _supabase.from('tournaments').insert({
-      name, type: selectedType, format, description,
-      owner_id: currentUser.id,
-      status: 'upcoming',
-      current_round: 0,
-      tournament_date
-    });
-    if (error) { showToast('Error: ' + error.message); return; }
-    closeModal('modal-new-tournament');
-    showToast('¡Torneo creado!');
-  }
-  loadDashboard();
-}
-
-async function deleteTournament(id, event) {
-  event.stopPropagation();
-  if (!confirm('¿Eliminar este torneo? Se borrarán todos los jugadores y partidos.')) return;
-  const { error } = await _supabase.from('tournaments').delete().eq('id', id);
-  if (error) { showToast('Error: ' + error.message); return; }
-  showToast('Torneo eliminado');
-  loadDashboard();
-}
-
-async function loadDashboard() {
-  const el = document.getElementById('tournament-list');
-  el.innerHTML = '<div class="empty-state">Cargando...</div>';
-
-  const { data, error } = await _supabase
-    .from('tournaments')
-    .select('*')
-    .order('tournament_date', { ascending: true });
-
-  if (error) { el.innerHTML = '<div class="empty-state">Error cargando torneos</div>'; return; }
-
-  window._tournamentsCache = data;
-
-  if (!data.length) {
-    el.innerHTML = `<div class="empty-state" style="grid-column:1/-1">
-      <div class="empty-icon">🏆</div>
-      <p>No hay torneos programados aún.</p>
-    </div>`;
-    return;
-  }
-
-  const icons  = { commander:'🧙', standard:'🃏', beyblade:'🌀' };
-  const labels = { commander:'Commander · Pods', standard:'Standard · Bo3', beyblade:'Beyblade · Bo3' };
-  const fmtLbl = { swiss:'Swiss', elimination:'Eliminación directa', pods:'' };
-
-  el.innerHTML = data.map(t => {
-    const dateStr = formatTournamentDate(t.tournament_date);
-    const statusClass = { upcoming:'status-upcoming', active:'status-active', finished:'status-finished' }[t.status] || '';
-    const statusLabel = { upcoming:'Próximo', active:'En curso', finished:'Finalizado' }[t.status] || t.status;
-
-    const adminBtns = isAdmin ? `
-      <div style="display:flex;gap:6px;margin-top:10px" onclick="event.stopPropagation()">
-        <button class="btn btn-sm btn-ghost" onclick="openEditTournamentModal('${t.id}', event)">✏️ Editar</button>
-        <button class="btn btn-sm btn-danger" onclick="deleteTournament('${t.id}', event)">🗑 Eliminar</button>
-      </div>` : '';
-
-    return `<div class="t-card ${t.type}" onclick="openTournament('${t.id}')">
-      <div class="t-card-header">
-        <div class="t-card-icon">${icons[t.type] || '🏆'}</div>
-        <div class="t-card-info">
-          <div class="t-card-name">${escHtml(t.name)}</div>
-          <div class="t-card-type">${labels[t.type]}${t.format !== 'pods' ? ' · ' + fmtLbl[t.format] : ''}</div>
-        </div>
-      </div>
-      ${dateStr ? `<div class="t-card-date">📅 ${dateStr}</div>` : ''}
-      ${t.description ? `<div class="t-card-desc">${escHtml(t.description)}</div>` : ''}
-      <div class="t-card-footer">
-        <span style="font-size:12px"><span class="status-dot ${statusClass}"></span>${statusLabel}</span>
-      </div>
-      ${adminBtns}
-    </div>`;
-  }).join('');
-}
-
-function openJoinModal(tournamentId, tournamentName, type) {
-  joiningTournamentId = tournamentId;
-  document.getElementById('join-title').textContent = 'Unirse: ' + tournamentName;
-  document.getElementById('join-name').value = currentUser?.user_metadata?.display_name || '';
-  document.getElementById('join-bey-row').style.display = type === 'beyblade' ? '' : 'none';
-  document.getElementById('join-bey').value = '';
-  openModal('modal-join');
-}
-
-async function joinTournament() {
-  const name = document.getElementById('join-name').value.trim();
-  if (!name) { showToast('Pon tu nombre'); return; }
-
-  const { data: existing } = await _supabase
-    .from('players').select('id')
-    .eq('tournament_id', joiningTournamentId)
-    .eq('user_id', currentUser.id)
-    .maybeSingle();
-
-  if (existing) { showToast('Ya estás inscrito'); closeModal('modal-join'); return; }
-
-  const bey = document.getElementById('join-bey').value.trim();
   const { error } = await _supabase.from('players').insert({
-    tournament_id: joiningTournamentId,
-    user_id: currentUser.id,
-    name, bey_name: bey || null,
+    tournament_id: currentTournament.id,
+    user_id: null, // sin cuenta — jugador manual
+    name, bey_name: bey_name || null,
     wins:0, losses:0, draws:0, points:0, game_wins:0, game_losses:0
   });
-
   if (error) { showToast('Error: ' + error.message); return; }
-  closeModal('modal-join');
-  showToast('¡Inscripción confirmada! 🎉');
-  loadDashboard();
+  nameEl.value = ''; if (beyEl) beyEl.value = '';
+  await loadPlayers();
+  refreshCurrentView();
+  showToast(`${name} agregado ✓`);
 }
 
-function goToDashboard() {
-  stopRealtimeSubscription();
-  showScreen('screen-dashboard');
-  loadDashboard();
+async function removePlayer(playerId) {
+  if (!confirm('¿Quitar este jugador?')) return;
+  await _supabase.from('players').delete().eq('id', playerId);
+  await loadPlayers();
+  refreshCurrentView();
 }
 
-function formatTournamentDate(iso) {
-  if (!iso) return '';
-  const d = new Date(iso);
-  return d.toLocaleDateString('es-MX', { weekday:'long', day:'2-digit', month:'long', year:'numeric' })
-    + (iso.includes('T') && !iso.endsWith('T00:00:00') ? ' · ' + d.toLocaleTimeString('es-MX', { hour:'2-digit', minute:'2-digit' }) : '');
+async function setTournamentStatus(status) {
+  await _supabase.from('tournaments').update({ status }).eq('id', currentTournament.id);
+  currentTournament.status = status;
+  refreshCurrentView();
+  showToast(status === 'active' ? '¡Torneo iniciado!' : 'Torneo finalizado');
+}
+
+function refreshCurrentView() {
+  if (!currentTournament) return;
+  if (currentTournament.type === 'commander') renderCommanderView();
+  else if (currentTournament.format === 'swiss') renderSwissView();
+  else renderEliminationView();
+}
+
+function isOwner() {
+  return currentUser && currentTournament && (currentTournament.owner_id === currentUser.id || isAdmin);
+}
+
+function enterGameApp(tournamentId) {
+  const myPlayer = tournamentPlayers.find(p => p.user_id === currentUser.id);
+  if (!myPlayer && !isAdmin) { showToast('No estás inscrito en este torneo'); return; }
+  startGameApp(currentTournament, tournamentPlayers, myPlayer || tournamentPlayers[0]);
+}
+
+// Admin panel controls
+function renderTournamentControls() {
+  if (!isOwner()) return '';
+  const t = currentTournament;
+  const statusBtns = t.status === 'upcoming'
+    ? `<button class="btn btn-cream btn-sm" onclick="setTournamentStatus('active')">▶ Iniciar torneo</button>`
+    : t.status === 'active'
+    ? `<button class="btn btn-danger btn-sm" onclick="setTournamentStatus('finished')">■ Finalizar</button>`
+    : `<span style="color:var(--muted);font-size:12px">✓ Finalizado</span>`;
+  return `<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
+    ${statusBtns}
+    <button class="btn btn-sm" onclick="enterGameApp('${t.id}')">🎮 Entrar como jugador</button>
+  </div>`;
+}
+
+// Player join/enter button for non-admins
+function renderJoinButton() {
+  if (isAdmin) return '';
+  const t = currentTournament;
+  const myPlayer = tournamentPlayers.find(p => p.user_id === currentUser?.id);
+  if (myPlayer) {
+    if (t.status === 'active') {
+      return `<div style="margin-bottom:12px">
+        <button class="btn btn-primary" onclick="enterGameApp('${t.id}')">🎮 Entrar a la partida</button>
+      </div>`;
+    }
+    return `<div style="margin-bottom:12px;padding:10px 14px;background:var(--dark3);border:1px solid var(--border);border-radius:var(--radius)">
+      <span style="color:var(--green);font-size:13px">✓ Inscrito</span>
+      <span style="color:var(--muted);font-size:12px;margin-left:8px">El torneo comenzará pronto</span>
+    </div>`;
+  }
+  if (t.status === 'upcoming') {
+    return `<div style="margin-bottom:12px">
+      <button class="btn btn-primary" onclick="openJoinModal('${t.id}','${escHtml(t.name)}','${t.type}')">+ Inscribirme</button>
+    </div>`;
+  }
+  return '';
+}
+
+// Admin: render add player row (manual, sin cuenta)
+function renderAddPlayerRow(nameId, beyId) {
+  if (!isOwner()) return '';
+  const isBey = currentTournament?.type === 'beyblade';
+  return `<div class="add-row" style="margin-bottom:10px">
+    <input class="input" id="${nameId}" type="text" placeholder="Nombre del jugador" onkeydown="if(event.key==='Enter')addPlayer('${nameId}'${beyId ? `,'${beyId}'` : ''})">
+    ${isBey && beyId ? `<input class="input" id="${beyId}" type="text" placeholder="Beyblade (opcional)">` : ''}
+    <button class="btn" onclick="addPlayer('${nameId}'${beyId ? `,'${beyId}'` : ''})">+ Agregar</button>
+  </div>`;
 }
