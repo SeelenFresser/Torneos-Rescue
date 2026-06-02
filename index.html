@@ -56,6 +56,19 @@
       <h2>🏆 Torneos</h2>
       <button class="btn btn-primary" id="btn-new-tournament" style="display:none" onclick="openNewTournamentModal()">+ Nuevo torneo</button>
     </div>
+    <!-- Quick tools for all users -->
+    <div id="quick-tools" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px">
+      <button class="btn" onclick="openFreeLifeCounter('commander')" style="border-color:var(--magic);color:var(--magic)">
+        🧙 Contador vida Commander (40)
+      </button>
+      <button class="btn" onclick="openFreeLifeCounter('standard')" style="border-color:var(--std);color:var(--std)">
+        🃏 Contador vida Standard (20)
+      </button>
+      <button class="btn" onclick="openFreeSpinner()" style="border-color:var(--bey);color:var(--bey)">
+        🎲 Ruleta / Dados
+      </button>
+    </div>
+
     <div id="tournament-list" class="tournament-grid">
       <div class="empty-state">Cargando torneos...</div>
     </div>
@@ -142,13 +155,13 @@
 
         <label class="label">Sistema de puntos por pod</label>
         <select class="input" id="nt-points">
-          <option value="A">Sistema A: 1° = 10 · 2° = 6 · 3° = 3 · 4° = 1</option>
-          <option value="B">Sistema B: 1° = 7 · 2° = 4 · 3° = 2 · 4° = 1</option>
-          <option value="C">Sistema C: 1° = 4 · 2° = 2 · 3° = 1 · 4° = 0</option>
-          <option value="D">Sistema D: Solo victoria (1° = 1pt, resto = 0)</option>
+          <option value="standard" selected>Estándar: 1°=3pts · 2°=1pt · 3°=0 · 4°=0</option>
+          <option value="placement">Placement: 1°=10 · 2°=6 · 3°=3 · 4°=1</option>
+          <option value="cedh">cEDH: 1pt por eliminación + 1pt por ganar mesa</option>
+          <option value="winner">Solo victoria: 1°=1pt · resto=0</option>
         </select>
         <p style="font-size:11px;color:var(--muted);margin-top:-6px;margin-bottom:8px">
-          El emparejamiento siempre coloca a los mejores juntos en el mismo pod.
+          Estándar es el más usado en tiendas locales. Empates se resuelven por win% de oponentes.
         </p>
       </div>
 
