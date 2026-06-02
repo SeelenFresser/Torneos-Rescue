@@ -84,9 +84,16 @@ function isOwner() {
 }
 
 function enterGameApp(tournamentId) {
-  const myPlayer = tournamentPlayers.find(p => p.user_id === currentUser.id);
+  const myPlayer = tournamentPlayers.find(p => p.user_id === currentUser?.id);
   if (!myPlayer && !isAdmin) { showToast('No estás inscrito en este torneo'); return; }
-  startGameApp(currentTournament, tournamentPlayers, myPlayer || tournamentPlayers[0]);
+
+  if (currentTournament.type === 'commander') {
+    // Commander: sesión individual por pod
+    openPlayerPodSession(tournamentId);
+  } else {
+    // Standard/Beyblade: app de vida compartida
+    startGameApp(currentTournament, tournamentPlayers, myPlayer || tournamentPlayers[0]);
+  }
 }
 
 // Admin panel controls
@@ -112,9 +119,10 @@ function renderJoinButton() {
 
   if (myPlayer) {
     if (t.status === 'active') {
+      const label = t.type === 'commander' ? '🎯 Entrar a mi mesa' : '🎮 Entrar a la partida';
       return `<div style="margin-bottom:12px;display:flex;gap:8px;align-items:center">
-        <button class="btn btn-primary" onclick="enterGameApp('${t.id}')">🎮 Entrar a la partida</button>
-        <span style="color:var(--green);font-size:12px">✓ Inscrito como <strong>${escHtml(myPlayer.name)}</strong></span>
+        <button class="btn btn-primary" onclick="enterGameApp('${t.id}')">${label}</button>
+        <span style="color:var(--green);font-size:12px">✓ <strong>${escHtml(myPlayer.name)}</strong></span>
       </div>`;
     }
     return `<div style="margin-bottom:12px;padding:10px 14px;background:var(--dark3);border:1px solid var(--border);border-radius:var(--radius);display:flex;align-items:center;gap:8px">
