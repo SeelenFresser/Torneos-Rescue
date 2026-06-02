@@ -110,6 +110,27 @@ async function deleteTournament(id, event) {
 }
 
 async function loadDashboard() {
+  // Render quick tools (done here so onclick fns are defined)
+  const qt = document.getElementById('quick-tools');
+  if (qt) qt.innerHTML = `
+    <button class="btn" onclick="openRoomsScreen()"
+      style="border-color:var(--magic);color:var(--magic);font-weight:700">
+      🧙 Commander en vivo
+    </button>
+    <button class="btn" onclick="openFreeLifeCounter('commander')"
+      style="border-color:var(--magic);color:var(--magic)">
+      🧙 Contador (40 PV)
+    </button>
+    <button class="btn" onclick="openFreeLifeCounter('standard')"
+      style="border-color:var(--std);color:var(--std)">
+      🃏 Contador (20 PV)
+    </button>
+    <button class="btn" onclick="openFreeSpinner()"
+      style="border-color:var(--bey);color:var(--bey)">
+      🎲 Dados & Ruleta
+    </button>
+  `;
+
   const el = document.getElementById('tournament-list');
   el.innerHTML = '<div class="empty-state">Cargando...</div>';
 
