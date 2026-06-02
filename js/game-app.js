@@ -425,3 +425,246 @@ function subscribeGameBroadcast(tournamentId) {
     })
     .subscribe();
 }
+
+// =============================================
+// MODO LIBRE — Sin torneo, desde el dashboard
+// =============================================
+
+function openFreeLifeCounter(mode) {
+  // mode = 'commander' (40 PV) o 'standard' (20 PV)
+  const startLife = mode === 'commander' ? 40 : 20;
+  const label = mode === 'commander' ? '🧙 Commander' : '🃏 Standard';
+
+  document.getElementById('game-title').textContent = label;
+  document.getElementById('game-player-name').textContent = 'Modo libre';
+  showScreen('screen-game');
+
+  // Estado libre: jugadores configurables
+  gameState = {
+    tournament: { type: mode === 'commander' ? 'commander' : 'standard', id: null },
+    players: [],
+    myPlayer: null,
+    lifePoints: {},
+    commanderDmg: {},
+    activeGame: 'life',
+    freeMode: true,
+    startLife
+  };
+
+  renderFreeLifeCounter(startLife, mode);
+}
+
+function openFreeSpinner() {
+  document.getElementById('game-title').textContent = '🎲 Dados & Ruleta';
+  document.getElementById('game-player-name').textContent = 'Modo libre';
+  showScreen('screen-game');
+  gameState = { freeMode: true, tournament: null, players: [], activeGame: 'spin' };
+
+  const content = document.getElementById('game-content');
+  renderSpinTab(content);
+}
+
+function renderFreeLifeCounter(startLife, mode) {
+  const content = document.getElementById('game-content');
+
+  // Leer jugadores configurados, default 2
+  const players = gameState.freePlayers || [
+    { id: 'p1', name: 'Jugador 1' },
+    { id: 'p2', name: 'Jugador 2' }
+  ];
+  if (!gameState.freePlayers) gameState.freePlayers = players;
+
+  // Init life
+  players.forEach(p => {
+    if (gameState.lifePoints[p.id] === undefined) gameState.lifePoints[p.id] = startLife;
+  });
+
+  const isCommander = mode === 'commander';
+
+  const tabs = isCommander
+    ? [['life','❤️ Vida'],['spin','🎲 Dados'],['cmdr','⚔️ Comandante']]
+    : [['life','❤️ Vida'],['spin','🎲 Dados']];
+
+  content.innerHTML = `
+    <!-- Config jugadores -->
+    <div class="section" style="margin-bottom:12px">
+      <div class="section-head">
+        <span class="section-title">👥 Jugadores</span>
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-sm" onclick="addFreePlayer(${startLife})">+ Jugador</button>
+          <button class="btn btn-sm btn-danger" onclick="resetFreeLife(${startLife})">🔄 Reset</button>
+        </div>
+      </div>
+      <div class="section-body" style="padding:10px 16px">
+        <div style="display:flex;flex-wrap:wrap;gap:6px" id="free-player-chips">
+          ${players.map((p,i) => `
+            <div class="chip">
+              <input style="background:transparent;border:none;color:var(--text);width:80px;font-size:12px;outline:none"
+                value="${escHtml(p.name)}" onchange="renameFreePlayer('${p.id}',this.value)">
+              ${players.length > 2 ? `<button class="chip-remove" onclick="removeFreePlayer('${p.id}',${startLife})">×</button>` : ''}
+            </div>`).join('')}
+        </div>
+      </div>
+    </div>
+
+    <div class="game-tabs">
+      ${tabs.map(([id,label]) =>
+        `<button class="game-tab ${gameState.activeGame===id?'active':''}"
+          onclick="switchFreeTab('${id}',${startLife},'${mode}')">${label}</button>`
+      ).join('')}
+    </div>
+    <div id="game-tab-content"></div>
+  `;
+
+  renderFreeTab(gameState.activeGame, startLife, mode);
+}
+
+function switchFreeTab(tab, startLife, mode) {
+  gameState.activeGame = tab;
+  document.querySelectorAll('.game-tab').forEach(b => {
+    b.classList.toggle('active',
+      (tab==='life'&&b.textContent.includes('❤️'))||
+      (tab==='spin'&&b.textContent.includes('🎲'))||
+      (tab==='cmdr'&&b.textContent.includes('⚔️'))
+    );
+  });
+  renderFreeTab(tab, startLife, mode);
+}
+
+function renderFreeTab(tab, startLife, mode) {
+  const el = document.getElementById('game-tab-content');
+  if (!el) return;
+  if (tab === 'life') renderFreeLifeTab(el, startLife);
+  else if (tab === 'spin') renderSpinTab(el);
+  else if (tab === 'cmdr') renderFreeCommanderDmgTab(el);
+}
+
+function renderFreeLifeTab(el, startLife) {
+  const players = gameState.freePlayers || [];
+  el.innerHTML = `<div style="display:grid;gap:12px">
+    ${players.map(p => {
+      const life = gameState.lifePoints[p.id] ?? startLife;
+      const dangerClass = life <= 5 ? 'critical' : life <= 10 ? 'danger' : '';
+      return `<div class="life-counter">
+        <div class="life-player">${escHtml(p.name)}</div>
+        <div class="life-num ${dangerClass}" id="life-${p.id}">${life}</div>
+        <div class="life-controls">
+          <button class="life-btn minus" onclick="changeFreeLife('${p.id}',-5,${startLife})">−5</button>
+          <button class="life-btn minus" onclick="changeFreeLife('${p.id}',-1,${startLife})">−1</button>
+          <button class="life-btn plus"  onclick="changeFreeLife('${p.id}',+1,${startLife})">+1</button>
+          <button class="life-btn plus"  onclick="changeFreeLife('${p.id}',+5,${startLife})">+5</button>
+        </div>
+        <div class="life-input-row">
+          <input class="life-in" id="life-custom-${p.id}" type="number" placeholder="±"
+            onkeydown="if(event.key==='Enter')applyFreeCustomLife('${p.id}',${startLife})">
+          <button class="btn btn-sm" onclick="applyFreeCustomLife('${p.id}',${startLife})">Aplicar</button>
+          <button class="btn btn-sm btn-ghost" onclick="changeFreeLife('${p.id}',0,${startLife},true)">Reset</button>
+        </div>
+      </div>`;
+    }).join('')}
+  </div>`;
+}
+
+function changeFreeLife(playerId, delta, startLife, reset = false) {
+  gameState.lifePoints[playerId] = reset ? startLife : (gameState.lifePoints[playerId] ?? startLife) + delta;
+  const el = document.getElementById('life-' + playerId);
+  if (el) {
+    const life = gameState.lifePoints[playerId];
+    el.textContent = life;
+    el.className = 'life-num ' + (life<=5?'critical':life<=10?'danger':'');
+  }
+}
+
+function applyFreeCustomLife(playerId, startLife) {
+  const el = document.getElementById('life-custom-' + playerId);
+  const val = parseInt(el?.value);
+  if (!isNaN(val)) { changeFreeLife(playerId, val, startLife); el.value = ''; }
+}
+
+function addFreePlayer(startLife) {
+  if (!gameState.freePlayers) gameState.freePlayers = [];
+  if (gameState.freePlayers.length >= 8) { showToast('Máximo 8 jugadores'); return; }
+  const id = 'p' + Date.now();
+  const num = gameState.freePlayers.length + 1;
+  gameState.freePlayers.push({ id, name: `Jugador ${num}` });
+  gameState.lifePoints[id] = startLife;
+  const mode = gameState.tournament?.type || 'standard';
+  renderFreeLifeCounter(startLife, mode);
+}
+
+function removeFreePlayer(playerId, startLife) {
+  gameState.freePlayers = (gameState.freePlayers||[]).filter(p => p.id !== playerId);
+  delete gameState.lifePoints[playerId];
+  const mode = gameState.tournament?.type || 'standard';
+  renderFreeLifeCounter(startLife, mode);
+}
+
+function renameFreePlayer(playerId, newName) {
+  const p = (gameState.freePlayers||[]).find(p => p.id === playerId);
+  if (p) p.name = newName;
+}
+
+function resetFreeLife(startLife) {
+  (gameState.freePlayers||[]).forEach(p => { gameState.lifePoints[p.id] = startLife; });
+  document.querySelectorAll('[id^="life-p"]').forEach(el => {
+    el.textContent = startLife;
+    el.className = 'life-num';
+  });
+}
+
+function renderFreeCommanderDmgTab(el) {
+  const players = gameState.freePlayers || [];
+  if (!gameState.commanderDmg) gameState.commanderDmg = {};
+  players.forEach(att => {
+    if (!gameState.commanderDmg[att.id]) gameState.commanderDmg[att.id] = {};
+    players.forEach(vic => {
+      if (att.id !== vic.id && gameState.commanderDmg[att.id][vic.id] === undefined)
+        gameState.commanderDmg[att.id][vic.id] = 0;
+    });
+  });
+
+  el.innerHTML = `<div style="display:grid;gap:16px">
+    ${players.map(att => `
+      <div class="section">
+        <div class="section-head"><span class="section-title">⚔️ ${escHtml(att.name)} hace daño a:</span></div>
+        <div class="section-body">
+          <div class="cmdr-damage-grid">
+            ${players.filter(v => v.id !== att.id).map(vic => {
+              const dmg = gameState.commanderDmg[att.id]?.[vic.id] || 0;
+              return `<div class="cmdr-dmg-row">
+                <div class="cmdr-dmg-name">${escHtml(vic.name)}</div>
+                <div class="cmdr-dmg-val ${dmg>=16?'danger':''}" id="cdmg-free-${att.id}-${vic.id}">${dmg}</div>
+                <div class="cmdr-dmg-btns">
+                  <button class="dmg-btn minus" onclick="changeFreeCommanderDmg('${att.id}','${vic.id}',-1)">−</button>
+                  <button class="dmg-btn plus"  onclick="changeFreeCommanderDmg('${att.id}','${vic.id}',+1)">+</button>
+                  <button class="dmg-btn plus"  onclick="changeFreeCommanderDmg('${att.id}','${vic.id}',+2)">+2</button>
+                </div>
+                ${dmg>=21?'<span style="color:var(--red);font-size:11px;font-weight:700">💀 21!</span>':''}
+              </div>`;
+            }).join('')}
+          </div>
+        </div>
+      </div>
+    `).join('')}
+  </div>`;
+}
+
+function changeFreeCommanderDmg(attId, vicId, delta) {
+  if (!gameState.commanderDmg[attId]) gameState.commanderDmg[attId] = {};
+  gameState.commanderDmg[attId][vicId] = Math.max(0, (gameState.commanderDmg[attId][vicId]||0) + delta);
+  const el = document.getElementById(`cdmg-free-${attId}-${vicId}`);
+  if (el) {
+    const val = gameState.commanderDmg[attId][vicId];
+    el.textContent = val;
+    el.className = 'cmdr-dmg-val' + (val>=16?' danger':'');
+  }
+}
+
+function leaveGame() {
+  if (gameState.freeMode) {
+    gameState = { tournament:null, players:[], myPlayer:null, lifePoints:{}, commanderDmg:{}, activeGame:'life' };
+    showScreen('screen-dashboard');
+  } else {
+    showScreen('screen-tournament');
+  }
+}
