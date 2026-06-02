@@ -53,8 +53,14 @@ async function checkAdminRole(userId) {
     .from('profiles')
     .select('role')
     .eq('id', userId)
-    .single();
-  return data?.role === 'admin';
+    .maybeSingle();
+
+  // Si no tiene perfil aun, crearlo como user
+  if (!data) {
+    await _supabase.from('profiles').insert({ id: userId, role: 'user' });
+    return false;
+  }
+  return data.role === 'admin';
 }
 
 async function onAuthSuccess(user) {
