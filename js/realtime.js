@@ -1,30 +1,45 @@
 // =============================================
-// REALTIME
+// REALTIME — con debounce para evitar 429
 // =============================================
 let realtimeChannel = null;
+let _realtimeDebounceTimer = null;
+
+function _debouncedRefresh(delay = 800) {
+  clearTimeout(_realtimeDebounceTimer);
+  _realtimeDebounceTimer = setTimeout(async () => {
+    await loadPlayers();
+    refreshCurrentView();
+  }, delay);
+}
 
 function startRealtimeSubscription(tournamentId) {
   stopRealtimeSubscription();
   realtimeChannel = _supabase
     .channel(`tournament-${tournamentId}`)
-    .on('postgres_changes', { event:'*', schema:'public', table:'matches', filter:`tournament_id=eq.${tournamentId}` }, async () => {
-      await loadPlayers();
-      refreshCurrentView();
-    })
-    .on('postgres_changes', { event:'*', schema:'public', table:'players', filter:`tournament_id=eq.${tournamentId}` }, async () => {
-      await loadPlayers();
-      refreshCurrentView();
-    })
-    .on('postgres_changes', { event:'UPDATE', schema:'public', table:'tournaments', filter:`id=eq.${tournamentId}` }, async (payload) => {
+    .on('postgres_changes', {
+      event: '*', schema: 'public', table: 'matches',
+      filter: `tournament_id=eq.${tournamentId}`
+    }, () => _debouncedRefresh())
+    .on('postgres_changes', {
+      event: '*', schema: 'public', table: 'players',
+      filter: `tournament_id=eq.${tournamentId}`
+    }, () => _debouncedRefresh())
+    .on('postgres_changes', {
+      event: 'UPDATE', schema: 'public', table: 'tournaments',
+      filter: `id=eq.${tournamentId}`
+    }, (payload) => {
       if (payload.new) {
         currentTournament = { ...currentTournament, ...payload.new };
-        await loadPlayers();
-        refreshCurrentView();
+        _debouncedRefresh();
       }
     })
     .subscribe();
 }
 
 function stopRealtimeSubscription() {
-  if (realtimeChannel) { _supabase.removeChannel(realtimeChannel); realtimeChannel = null; }
+  clearTimeout(_realtimeDebounceTimer);
+  if (realtimeChannel) {
+    _supabase.removeChannel(realtimeChannel);
+    realtimeChannel = null;
+  }
 }
