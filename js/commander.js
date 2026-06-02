@@ -531,34 +531,75 @@ function renderMyCEDHKillsTab(el) {
   const myId=gameState.myPlayer.id;
   const opponents=gameState.players.filter(p=>p.id!==myId);
   const myKills=gameState.kills||{};
+  const iWon=gameState.iWonThePod||false;
 
   el.innerHTML=`
     <p style="font-size:13px;color:var(--muted);margin-bottom:12px">
-      Marca a quién eliminaste. Esto se envía al admin para validar.
+      Marca a quién eliminaste y si ganaste la mesa. Recuerda: 1pt por kill + 1pt por ganar.
     </p>
-    <div style="display:grid;gap:8px">
+
+    <!-- ¿Gané la mesa? -->
+    <div style="padding:12px;margin-bottom:12px;
+      background:${iWon?'rgba(61,212,160,0.12)':'var(--dark3)'};
+      border:2px solid ${iWon?'var(--green)':'var(--border2)'};border-radius:var(--radius)">
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <div>
+          <div style="font-size:14px;font-weight:700;color:${iWon?'var(--green)':'var(--text)'}">
+            ${iWon?'👑 Gané la mesa':'¿Ganaste la mesa?'}
+          </div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px">+1 punto adicional por ganar</div>
+        </div>
+        ${iWon
+          ?`<button class="btn btn-xs btn-ghost" onclick="setIWon(false)">Deshacer</button>`
+          :`<button class="btn btn-sm" style="border-color:var(--green);color:var(--green)"
+              onclick="setIWon(true)">👑 Sí, gané</button>`}
+      </div>
+    </div>
+
+    <!-- Kills -->
+    <p style="font-size:12px;color:var(--muted);margin-bottom:8px;font-weight:600">
+      💀 Jugadores que eliminé (1pt c/u):
+    </p>
+    <div style="display:grid;gap:8px;margin-bottom:14px">
       ${opponents.map(opp=>{
         const killed=myKills[opp.id]||false;
-        return `<div style="display:flex;align-items:center;gap:10px;padding:12px;
-          background:${killed?'rgba(61,212,160,0.1)':'var(--dark3)'};
-          border:1px solid ${killed?'var(--green)':'var(--border)'};border-radius:var(--radius)">
-          <div style="flex:1;font-size:14px;font-weight:${killed?'700':'400'};
-            color:${killed?'var(--green)':'var(--text)'}">${escHtml(opp.name)}</div>
+        return `<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;
+          background:${killed?'rgba(224,23,106,0.1)':'var(--dark3)'};
+          border:1px solid ${killed?'var(--pink)':'var(--border)'};border-radius:var(--radius)">
+          <div style="flex:1;font-size:13px;font-weight:${killed?'700':'400'};
+            color:${killed?'var(--pink-light)':'var(--text)'}">${escHtml(opp.name)}</div>
           ${killed
-            ?`<span style="color:var(--green);font-size:12px">💀 Eliminado</span>
-              <button class="btn btn-xs btn-ghost" onclick="toggleKill('${opp.id}',false)">Deshacer</button>`
+            ?`<span style="color:var(--pink-light);font-size:12px">+1pt 💀</span>
+              <button class="btn btn-xs btn-ghost" onclick="toggleKill('${opp.id}',false)">✕</button>`
             :`<button class="btn btn-sm" style="border-color:var(--red);color:var(--red)"
-                onclick="toggleKill('${opp.id}',true)">💀 Eliminé a ${escHtml(opp.name)}</button>`}
+                onclick="toggleKill('${opp.id}',true)">💀 Lo eliminé</button>`}
         </div>`;
       }).join('')}
     </div>
-    <hr style="margin:14px 0">
-    <div style="padding:12px;background:var(--dark3);border-radius:var(--radius)">
+
+    <!-- Resumen de puntos -->
+    <div style="padding:10px 12px;background:var(--dark3);border-radius:var(--radius);margin-bottom:12px;
+      border:1px solid var(--border2)">
+      <div style="font-size:12px;color:var(--muted);margin-bottom:4px">Mi puntaje esta ronda:</div>
+      <div style="font-size:20px;font-weight:700;color:var(--magic)">
+        ${Object.values(myKills).filter(Boolean).length + (iWon?1:0)} pts
+        <span style="font-size:12px;color:var(--muted);font-weight:400">
+          (${Object.values(myKills).filter(Boolean).length} kills${iWon?' + 1 victoria':''})
+        </span>
+      </div>
+    </div>
+
+    <hr style="margin:12px 0">
+
+    <!-- ¿Quién me eliminó? -->
+    <div style="padding:12px;background:var(--dark3);border-radius:var(--radius);margin-bottom:12px">
       <p style="font-size:12px;color:var(--muted);margin-bottom:8px">¿Quién me eliminó a mí?</p>
       ${gameState.eliminatedBy
-        ?`<div style="color:var(--red);font-size:13px;font-weight:600">
-            💀 ${escHtml(gameState.players.find(p=>p.id===gameState.eliminatedBy)?.name||'?')}
-            <button class="btn btn-xs btn-ghost" style="margin-left:8px" onclick="setEliminatedBy(null)">Deshacer</button>
+        ?`<div style="color:var(--red);font-size:13px;font-weight:600;display:flex;align-items:center;gap:8px">
+            💀 Fui eliminado por: ${gameState.eliminatedBy==='survived'
+              ?'<span style="color:var(--green)">Nadie — sobreviví</span>'
+              :escHtml(gameState.players.find(p=>p.id===gameState.eliminatedBy)?.name||'?')}
+            <button class="btn btn-xs btn-ghost" onclick="setEliminatedBy(null)">Cambiar</button>
           </div>`
         :`<div style="display:flex;flex-wrap:wrap;gap:6px">
             ${opponents.map(opp=>
@@ -566,12 +607,22 @@ function renderMyCEDHKillsTab(el) {
                 ${escHtml(opp.name)} me eliminó
               </button>`
             ).join('')}
-            <button class="btn btn-sm btn-ghost" onclick="setEliminatedBy('survived')">Sobreviví / Gané</button>
+            <button class="btn btn-sm" style="border-color:var(--green);color:var(--green)"
+              onclick="setEliminatedBy('survived')">Sobreviví / Gané</button>
           </div>`}
     </div>
-    <button class="btn btn-primary w-full" style="margin-top:14px" onclick="submitCEDHReport()">
+
+    <button class="btn btn-primary w-full" onclick="submitCEDHReport()">
       📤 Enviar reporte al admin
     </button>`;
+}
+
+function setIWon(val) {
+  AudioFX.tap();
+  gameState.iWonThePod = val;
+  // Si gané, automáticamente marco que sobreviví
+  if (val) gameState.eliminatedBy = 'survived';
+  renderPodTab('cedh');
 }
 
 function toggleKill(oppId, killed) {
@@ -591,21 +642,28 @@ async function submitCEDHReport() {
   const myId=gameState.myPlayer.id;
   const kills=gameState.kills||{};
   const killCount=Object.values(kills).filter(Boolean).length;
+  const iWon=gameState.iWonThePod||false;
   const survived=gameState.eliminatedBy==='survived'||gameState.eliminatedBy===null;
+  const totalPts=killCount+(iWon?1:0);
 
-  // Guardar en pod_session como reporte parcial
   const {data:session}=await _supabase.from('pod_sessions').select('*')
     .eq('id',gameState.session.id).single();
 
   let reportData=session.result_data?JSON.parse(session.result_data):{};
-  reportData[myId]={kills:killCount, eliminatedBy:gameState.eliminatedBy, survived};
+  reportData[myId]={
+    kills: killCount,
+    won: iWon,
+    pts: totalPts,
+    eliminatedBy: gameState.eliminatedBy,
+    survived
+  };
 
   await _supabase.from('pod_sessions').update({
     result_data:JSON.stringify(reportData)
   }).eq('id',gameState.session.id);
 
   AudioFX.roundEnd();
-  showToast('✓ Reporte enviado al admin');
+  showToast(`✓ Reporte enviado — ${totalPts}pts esta ronda`);
 }
 
 // ── BROADCAST REALTIME ENTRE JUGADORES DEL POD ───────────
