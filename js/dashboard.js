@@ -3,6 +3,7 @@
 // =============================================
 let selectedType = 'commander';
 let joiningTournamentId = null;
+let editingTournamentId = null;
 
 function selectType(type) {
   selectedType = type;
@@ -11,11 +12,37 @@ function selectType(type) {
 }
 
 function openNewTournamentModal() {
+  editingTournamentId = null;
   selectedType = 'commander';
   document.querySelectorAll('.type-card').forEach(c => c.classList.toggle('active', c.dataset.type === 'commander'));
   document.getElementById('nt-format-row').style.display = 'none';
   ['nt-name','nt-desc','nt-date','nt-time'].forEach(id => document.getElementById(id).value = '');
   document.querySelector('input[name="nt-format"][value="swiss"]').checked = true;
+  document.querySelector('#modal-new-tournament .modal-header h3').textContent = 'Nuevo Torneo';
+  document.getElementById('nt-type-selector').style.pointerEvents = '';
+  openModal('modal-new-tournament');
+}
+
+function openEditTournamentModal(id, event) {
+  event.stopPropagation();
+  const t = window._tournamentsCache?.find(t => t.id === id);
+  if (!t) return;
+  editingTournamentId = id;
+  selectedType = t.type;
+
+  document.querySelector('#modal-new-tournament .modal-header h3').textContent = 'Editar Torneo';
+  document.getElementById('nt-name').value = t.name;
+  document.getElementById('nt-desc').value = t.description || '';
+
+  if (t.tournament_date) {
+    const d = new Date(t.tournament_date);
+    document.getElementById('nt-date').value = d.toISOString().split('T')[0];
+    document.getElementById('nt-time').value = d.toTimeString().slice(0,5);
+  }
+
+  document.querySelectorAll('.type-card').forEach(c => c.classList.toggle('active', c.dataset.type === t.type));
+  document.getElementById('nt-format-row').style.display = t.type !== 'commander' ? '' : 'none';
+  document.getElementById('nt-type-selector').style.pointerEvents = 'none'; // no cambiar tipo al editar
   openModal('modal-new-tournament');
 }
 
@@ -26,24 +53,43 @@ async function createTournament() {
   const time = document.getElementById('nt-time').value;
   if (!date) { showToast('Pon la fecha del torneo'); return; }
 
-  const format = selectedType === 'commander'
-    ? 'pods'
-    : document.querySelector('input[name="nt-format"]:checked').value;
-
   const tournament_date = time ? `${date}T${time}:00` : `${date}T00:00:00`;
+  const description = document.getElementById('nt-desc').value.trim();
 
-  const { error } = await _supabase.from('tournaments').insert({
-    name, type: selectedType, format,
-    description: document.getElementById('nt-desc').value.trim(),
-    owner_id: currentUser.id,
-    status: 'upcoming',
-    current_round: 0,
-    tournament_date
-  });
+  if (editingTournamentId) {
+    // EDITAR
+    const { error } = await _supabase.from('tournaments').update({
+      name, description, tournament_date
+    }).eq('id', editingTournamentId);
+    if (error) { showToast('Error: ' + error.message); return; }
+    closeModal('modal-new-tournament');
+    showToast('Torneo actualizado ✓');
+  } else {
+    // CREAR
+    const format = selectedType === 'commander'
+      ? 'pods'
+      : document.querySelector('input[name="nt-format"]:checked').value;
 
+    const { error } = await _supabase.from('tournaments').insert({
+      name, type: selectedType, format, description,
+      owner_id: currentUser.id,
+      status: 'upcoming',
+      current_round: 0,
+      tournament_date
+    });
+    if (error) { showToast('Error: ' + error.message); return; }
+    closeModal('modal-new-tournament');
+    showToast('¡Torneo creado!');
+  }
+  loadDashboard();
+}
+
+async function deleteTournament(id, event) {
+  event.stopPropagation();
+  if (!confirm('¿Eliminar este torneo? Se borrarán todos los jugadores y partidos.')) return;
+  const { error } = await _supabase.from('tournaments').delete().eq('id', id);
   if (error) { showToast('Error: ' + error.message); return; }
-  closeModal('modal-new-tournament');
-  showToast('¡Torneo creado!');
+  showToast('Torneo eliminado');
   loadDashboard();
 }
 
@@ -58,6 +104,8 @@ async function loadDashboard() {
 
   if (error) { el.innerHTML = '<div class="empty-state">Error cargando torneos</div>'; return; }
 
+  window._tournamentsCache = data;
+
   if (!data.length) {
     el.innerHTML = `<div class="empty-state" style="grid-column:1/-1">
       <div class="empty-icon">🏆</div>
@@ -71,10 +119,15 @@ async function loadDashboard() {
   const fmtLbl = { swiss:'Swiss', elimination:'Eliminación directa', pods:'' };
 
   el.innerHTML = data.map(t => {
-    const playerCount = t.player_count ?? 0;
     const dateStr = formatTournamentDate(t.tournament_date);
     const statusClass = { upcoming:'status-upcoming', active:'status-active', finished:'status-finished' }[t.status] || '';
     const statusLabel = { upcoming:'Próximo', active:'En curso', finished:'Finalizado' }[t.status] || t.status;
+
+    const adminBtns = isAdmin ? `
+      <div style="display:flex;gap:6px;margin-top:10px" onclick="event.stopPropagation()">
+        <button class="btn btn-sm btn-ghost" onclick="openEditTournamentModal('${t.id}', event)">✏️ Editar</button>
+        <button class="btn btn-sm btn-danger" onclick="deleteTournament('${t.id}', event)">🗑 Eliminar</button>
+      </div>` : '';
 
     return `<div class="t-card ${t.type}" onclick="openTournament('${t.id}')">
       <div class="t-card-header">
@@ -88,8 +141,8 @@ async function loadDashboard() {
       ${t.description ? `<div class="t-card-desc">${escHtml(t.description)}</div>` : ''}
       <div class="t-card-footer">
         <span style="font-size:12px"><span class="status-dot ${statusClass}"></span>${statusLabel}</span>
-        <span class="player-count">👥 ${playerCount} inscritos</span>
       </div>
+      ${adminBtns}
     </div>`;
   }).join('');
 }
@@ -108,13 +161,12 @@ async function joinTournament() {
   if (!name) { showToast('Pon tu nombre'); return; }
 
   const { data: existing } = await _supabase
-    .from('players')
-    .select('id')
+    .from('players').select('id')
     .eq('tournament_id', joiningTournamentId)
     .eq('user_id', currentUser.id)
-    .single();
+    .maybeSingle();
 
-  if (existing) { showToast('Ya estás inscrito en este torneo'); closeModal('modal-join'); return; }
+  if (existing) { showToast('Ya estás inscrito'); closeModal('modal-join'); return; }
 
   const bey = document.getElementById('join-bey').value.trim();
   const { error } = await _supabase.from('players').insert({
