@@ -280,6 +280,7 @@ async function generateSwissRound() {
   renderSwissView();
 
   const roundsLeft = Math.max(0, totalRounds - newRound);
+  AudioFX.roundStart();
   showToast(`Ronda ${newRound}/${totalRounds} generada${roundsLeft === 0 ? ' · ¡Última ronda!' : ''}`);
 }
 
@@ -344,13 +345,17 @@ async function _confirmSwissMatchById(matchId, s1, s2) {
 
   if ((!pending || pending.length === 0) && currentTournament.current_round < totalRounds) {
     setTimeout(() => {
-      showToast('✓ Ronda completa — generando siguiente...');
+      AudioFX.roundEnd();
+    showToast('✓ Ronda completa — generando siguiente...');
       setTimeout(() => generateSwissRound(), 1200);
     }, 400);
   } else if (!pending || pending.length === 0) {
+    AudioFX.roundEnd();
     showToast('🏆 ¡Todas las rondas completadas!');
     renderSwissView();
+    setTimeout(() => showWinnerPopup(tournamentPlayers), 800);
   } else {
+    AudioFX.tap();
     showToast('Resultado guardado ✓');
   }
 }
