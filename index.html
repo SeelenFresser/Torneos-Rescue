@@ -56,7 +56,74 @@
       <h2>🏆 Torneos</h2>
       <button class="btn btn-primary" id="btn-new-tournament" style="display:none" onclick="openNewTournamentModal()">+ Nuevo torneo</button>
     </div>
-    <div id="quick-tools" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px"></div>
+    <div id="quick-tools" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px"></div>
+
+    <!-- BANNERS -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px">
+
+      <!-- Banner Gacha — Mad Bunny -->
+      <a href="https://rescue-gacha-app.vercel.app/" target="_blank" rel="noopener"
+        style="text-decoration:none;display:block;height:120px">
+        <div style="
+          height:120px;
+          background:linear-gradient(135deg,#1A0010 0%,#3D0028 60%,#6B0044 100%);
+          border:1px solid var(--pink);
+          border-radius:var(--radius-lg);
+          display:flex;align-items:center;
+          overflow:hidden;position:relative;
+          transition:transform 0.15s,box-shadow 0.15s;cursor:pointer"
+          onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 8px 28px rgba(224,23,106,0.5)'"
+          onmouseout="this.style.transform='';this.style.boxShadow=''">
+          <!-- Mad Bunny image -->
+          <img src="img/mad-bunny.png" alt="Mad Bunny"
+            style="height:130px;width:auto;object-fit:contain;margin-left:-10px;flex-shrink:0;
+            filter:drop-shadow(0 0 12px rgba(255,45,138,0.6))">
+          <!-- Text -->
+          <div style="flex:1;padding:0 12px 0 4px">
+            <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;
+              color:var(--pink);font-weight:700;margin-bottom:4px">App Gacha</div>
+            <div style="font-size:15px;font-weight:900;color:#fff;line-height:1.2">
+              ¡Obtén cartas<br>físicas!
+            </div>
+            <div style="font-size:10px;color:var(--muted);margin-top:4px">
+              rescue-gacha-app.vercel.app →
+            </div>
+          </div>
+        </div>
+      </a>
+
+      <!-- Banner Facebook — Logo -->
+      <a href="https://www.facebook.com/RESCUETCG" target="_blank" rel="noopener"
+        style="text-decoration:none;display:block;height:120px">
+        <div style="
+          height:120px;
+          background:linear-gradient(135deg,#0A1628 0%,#0D2650 60%,#1877F2 100%);
+          border:1px solid #1877F2;
+          border-radius:var(--radius-lg);
+          display:flex;align-items:center;
+          overflow:hidden;position:relative;
+          transition:transform 0.15s,box-shadow 0.15s;cursor:pointer"
+          onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 8px 28px rgba(24,119,242,0.5)'"
+          onmouseout="this.style.transform='';this.style.boxShadow=''">
+          <!-- Logo -->
+          <img src="img/logo.png" alt="Rescue TCG"
+            style="height:110px;width:auto;object-fit:contain;margin-left:6px;flex-shrink:0;
+            filter:drop-shadow(0 0 10px rgba(255,45,138,0.4))">
+          <!-- Text -->
+          <div style="flex:1;padding:0 12px 0 8px">
+            <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;
+              color:#60A0FF;font-weight:700;margin-bottom:4px">📘 Facebook</div>
+            <div style="font-size:15px;font-weight:900;color:#fff;line-height:1.2">
+              Síguenos en<br>Facebook
+            </div>
+            <div style="font-size:12px;font-weight:800;color:#90C0FF;margin-top:4px">
+              RESCUE TCG →
+            </div>
+          </div>
+        </div>
+      </a>
+
+    </div>
 
     <div id="tournament-list" class="tournament-grid">
       <div class="empty-state">Cargando torneos...</div>
