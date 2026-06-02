@@ -53,7 +53,7 @@ async function loadDashboard() {
 
   const { data, error } = await _supabase
     .from('tournaments')
-    .select('*, players(count)')
+    .select('*')
     .order('tournament_date', { ascending: true });
 
   if (error) { el.innerHTML = '<div class="empty-state">Error cargando torneos</div>'; return; }
@@ -71,7 +71,7 @@ async function loadDashboard() {
   const fmtLbl = { swiss:'Swiss', elimination:'Eliminación directa', pods:'' };
 
   el.innerHTML = data.map(t => {
-    const playerCount = t.players?.[0]?.count ?? 0;
+    const playerCount = t.player_count ?? 0;
     const dateStr = formatTournamentDate(t.tournament_date);
     const statusClass = { upcoming:'status-upcoming', active:'status-active', finished:'status-finished' }[t.status] || '';
     const statusLabel = { upcoming:'Próximo', active:'En curso', finished:'Finalizado' }[t.status] || t.status;
