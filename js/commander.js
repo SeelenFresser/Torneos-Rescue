@@ -22,24 +22,29 @@ function renderCommanderView() {
     <div class="section">
       <div class="section-head">
         <span class="section-title">🧙 Jugadores (${players.length})</span>
-        ${owner && t.status === 'active' ? `<div style="display:flex;gap:6px">
-          <button class="btn btn-sm" onclick="generateCommanderPods()">🔀 Generar pods</button>
-          <button class="btn btn-sm btn-danger" onclick="finishTournament()">Finalizar</button>
+        ${owner && t.status !== 'finished' ? `<div style="display:flex;gap:6px">
+          <button class="btn btn-sm btn-primary" onclick="generateCommanderPods()">🔀 Generar pods</button>
+          ${t.status === 'active'
+            ? `<button class="btn btn-sm btn-danger" onclick="setTournamentStatus('finished')">■ Finalizar</button>`
+            : `<button class="btn btn-sm btn-cream" onclick="setTournamentStatus('active')">▶ Iniciar</button>`}
         </div>` : ''}
       </div>
       <div class="section-body">
-        ${owner && t.status === 'active' ? `
+        ${owner && t.status !== 'finished' ? `
         <div class="add-row" style="margin-bottom:10px">
           <input class="input" id="cmdr-player-name" type="text" placeholder="Nombre del jugador (2–32)" onkeydown="if(event.key==='Enter')addPlayer('cmdr-player-name')">
           <button class="btn" onclick="addPlayer('cmdr-player-name')">+ Agregar</button>
         </div>` : ''}
+        ${renderJoinButton()}
         <div class="chips">
           ${players.map(p => `
-            <div class="chip">${escHtml(p.name)}
-              ${owner && t.status === 'active' ? `<button class="chip-remove" onclick="removePlayer('${p.id}')">×</button>` : ''}
+            <div class="chip">
+              ${p.user_id ? '👤' : '🤖'} ${escHtml(p.name)}
+              ${owner && t.status !== 'finished' ? `<button class="chip-remove" onclick="removePlayer('${p.id}')">×</button>` : ''}
             </div>`).join('')}
           ${players.length === 0 ? '<span style="color:var(--muted);font-size:13px">Sin jugadores aún</span>' : ''}
         </div>
+        ${players.length > 0 ? `<p style="font-size:12px;color:var(--muted);margin-top:6px">${players.length} jugadores → ${Math.ceil(players.length/4)} pod(s)</p>` : ''}
       </div>
     </div>
 
@@ -47,7 +52,7 @@ function renderCommanderView() {
     <div class="section">
       <div class="section-head">
         <span class="section-title">🎯 Pods</span>
-        ${owner && t.status === 'active' ? `<button class="btn btn-sm" onclick="saveCommanderResults()">💾 Guardar resultados</button>` : ''}
+        ${owner && t.status !== 'finished' ? `<button class="btn btn-sm" onclick="saveCommanderResults()">💾 Guardar resultados</button>` : ''}
       </div>
       <div class="section-body" id="cmdr-pods-body">
         <div class="empty-state" style="padding:20px">
