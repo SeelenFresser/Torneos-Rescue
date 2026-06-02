@@ -234,11 +234,13 @@ function showRoomGame(room) {
     <div id="room-tab-body" style="height:calc(100vh - 160px);overflow-y:auto"></div>
   `;
 
+  roomState.activeTab = 'life';
   showRoomTab('life');
 }
 
 function showRoomTab(tab) {
   AudioFX.tap();
+  roomState.activeTab = tab; // guardar pestaña activa
   document.querySelectorAll('.game-tab').forEach(b => {
     b.classList.toggle('active',
       (tab==='life'&&b.textContent.includes('❤️'))||
@@ -452,16 +454,22 @@ function subscribeRoomChannel(roomId) {
         return;
       }
 
-      // En partida: actualizar vidas y daño de todos menos el mío
+      // En partida: actualizar solo los elementos del DOM, NUNCA re-renderizar
       if (payload.new.status === 'playing') {
         slots.forEach(s => {
-          if (s.id === roomState.mySlot?.id) return;
-          const el = document.getElementById('room-life-' + s.id);
-          if (el) {
-            el.textContent = s.life;
-            el.className = 'life-num ' + (s.life<=5?'critical':s.life<=10?'danger':'');
+          if (s.id === roomState.mySlot?.id) return; // la mía no se toca
+          // Actualizar vida
+          const lifeEl = document.getElementById('room-life-' + s.id);
+          if (lifeEl) {
+            lifeEl.textContent = s.life;
+            lifeEl.className = 'life-num ' + (s.life<=5?'critical':s.life<=10?'danger':'');
           }
         });
+        // Si estamos en la pestaña de comandante, actualizar los valores de daño
+        if (roomState.activeTab === 'cmdr') {
+          const tabEl = document.getElementById('room-tab-body');
+          if (tabEl) renderRoomCmdrTab(tabEl);
+        }
       }
     })
     .subscribe();
