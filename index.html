@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Torneo Manager</title>
+<link rel="stylesheet" href="css/style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+
+<!-- AUTH SCREEN -->
+<div id="screen-auth" class="screen active">
+  <div class="auth-center">
+    <div class="logo-block">
+      <div class="logo-icon">⚔️</div>
+      <h1>Torneo Manager</h1>
+      <p class="logo-sub">Magic · Standard · Beyblade</p>
+    </div>
+    <div class="card auth-card">
+      <div class="tab-row" id="auth-tabs">
+        <button class="tab active" onclick="switchAuthTab('login')">Iniciar sesión</button>
+        <button class="tab" onclick="switchAuthTab('register')">Registrarse</button>
+      </div>
+      <div id="auth-login">
+        <input class="input" id="login-email" type="email" placeholder="Correo electrónico">
+        <input class="input" id="login-pass" type="password" placeholder="Contraseña">
+        <button class="btn btn-primary w-full" onclick="doLogin()">Entrar</button>
+      </div>
+      <div id="auth-register" style="display:none">
+        <input class="input" id="reg-name" type="text" placeholder="Tu nombre">
+        <input class="input" id="reg-email" type="email" placeholder="Correo electrónico">
+        <input class="input" id="reg-pass" type="password" placeholder="Contraseña (mínimo 6 chars)">
+        <button class="btn btn-primary w-full" onclick="doRegister()">Crear cuenta</button>
+      </div>
+      <p class="auth-error" id="auth-error"></p>
+    </div>
+  </div>
+</div>
+
+<!-- DASHBOARD -->
+<div id="screen-dashboard" class="screen">
+  <nav class="navbar">
+    <div class="nav-brand">⚔️ Torneo Manager</div>
+    <div class="nav-right">
+      <span class="nav-user" id="nav-username"></span>
+      <button class="btn btn-ghost btn-sm" onclick="doLogout()">Salir</button>
+    </div>
+  </nav>
+  <div class="container">
+    <div class="page-header">
+      <h2>Mis Torneos</h2>
+      <button class="btn btn-primary" onclick="openNewTournamentModal()">+ Nuevo torneo</button>
+    </div>
+    <div id="tournament-list" class="tournament-grid">
+      <div class="empty-state">Cargando torneos...</div>
+    </div>
+  </div>
+</div>
+
+<!-- TOURNAMENT VIEW -->
+<div id="screen-tournament" class="screen">
+  <nav class="navbar">
+    <button class="btn btn-ghost btn-sm" onclick="goToDashboard()">← Volver</button>
+    <div class="nav-brand" id="t-name-nav">Torneo</div>
+    <div class="nav-right">
+      <span class="badge" id="t-type-badge"></span>
+    </div>
+  </nav>
+  <div class="container" id="tournament-content">
+  </div>
+</div>
+
+<!-- MODAL: New Tournament -->
+<div id="modal-new-tournament" class="modal-overlay" style="display:none" onclick="closeModal('modal-new-tournament')">
+  <div class="modal-box" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h3>Nuevo Torneo</h3>
+      <button class="btn btn-ghost btn-sm" onclick="closeModal('modal-new-tournament')">✕</button>
+    </div>
+    <div class="modal-body">
+      <label class="label">Nombre del torneo</label>
+      <input class="input" id="nt-name" type="text" placeholder="Ej: Gran Torneo de Beyblade #1">
+
+      <label class="label">Tipo de juego</label>
+      <div class="type-selector" id="nt-type-selector">
+        <div class="type-card active" data-type="commander" onclick="selectType('commander')">
+          <div class="type-icon">🧙</div>
+          <div class="type-label">Commander</div>
+          <div class="type-sub">Mesas de 4</div>
+        </div>
+        <div class="type-card" data-type="standard" onclick="selectType('standard')">
+          <div class="type-icon">🃏</div>
+          <div class="type-label">Standard</div>
+          <div class="type-sub">Bo3 · 1v1</div>
+        </div>
+        <div class="type-card" data-type="beyblade" onclick="selectType('beyblade')">
+          <div class="type-icon">🌀</div>
+          <div class="type-label">Beyblade</div>
+          <div class="type-sub">Bo3 · 1v1</div>
+        </div>
+      </div>
+
+      <div id="nt-format-row" style="display:none">
+        <label class="label">Formato de torneo</label>
+        <div class="radio-group">
+          <label class="radio-label"><input type="radio" name="nt-format" value="swiss" checked> Swiss (todos juegan)</label>
+          <label class="radio-label"><input type="radio" name="nt-format" value="elimination"> Eliminación directa</label>
+        </div>
+      </div>
+
+      <label class="label">Descripción (opcional)</label>
+      <input class="input" id="nt-desc" type="text" placeholder="Fecha, lugar, premio...">
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-new-tournament')">Cancelar</button>
+      <button class="btn btn-primary" onclick="createTournament()">Crear torneo</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div id="toast" class="toast"></div>
+
+<script src="js/supabase.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/dashboard.js"></script>
+<script src="js/tournament.js"></script>
+<script src="js/commander.js"></script>
+<script src="js/swiss.js"></script>
+<script src="js/elimination.js"></script>
+<script src="js/realtime.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
