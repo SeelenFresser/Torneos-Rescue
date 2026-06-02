@@ -58,8 +58,11 @@
     </div>
     <!-- Quick tools for all users -->
     <div id="quick-tools" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px">
+      <button class="btn" onclick="openRoomsScreen()" style="border-color:var(--magic);color:var(--magic);font-weight:700">
+        🧙 Commander en vivo — Salas
+      </button>
       <button class="btn" onclick="openFreeLifeCounter('commander')" style="border-color:var(--magic);color:var(--magic)">
-        🧙 Contador vida Commander (40)
+        🧙 Contador solo (40 PV)
       </button>
       <button class="btn" onclick="openFreeLifeCounter('standard')" style="border-color:var(--std);color:var(--std)">
         🃏 Contador vida Standard (20)
@@ -216,6 +219,7 @@
 <script src="js/elimination.js"></script>
 <script src="js/game-app.js"></script>
 <script src="js/realtime.js"></script>
+<script src="js/rooms.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>
