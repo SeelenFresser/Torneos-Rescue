@@ -74,9 +74,11 @@ async function onAuthSuccess(user) {
   if (isAdmin) {
     roleEl.style.display = '';
     document.getElementById('btn-new-tournament').style.display = '';
+    document.getElementById('btn-announce').style.display = '';
   } else {
     roleEl.style.display = 'none';
     document.getElementById('btn-new-tournament').style.display = 'none';
+    document.getElementById('btn-announce').style.display = 'none';
   }
 
   showScreen('screen-dashboard');
