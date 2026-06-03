@@ -115,12 +115,9 @@ async function sendAnnouncement() {
 }
 
 async function getUserCount() {
-  // Contar usuarios de Auth directamente
-  const { data } = await _supabase.auth.admin?.listUsers?.() || {};
-  if (data?.users) return data.users.length;
-  // Fallback: contar perfiles
   const { count } = await _supabase
     .from('profiles')
-    .select('*', { count: 'exact', head: true });
-  return count || '?';
+    .select('*', { count: 'exact', head: true })
+    .not('email', 'is', null);
+  return count || 0;
 }
