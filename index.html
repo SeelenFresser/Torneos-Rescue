@@ -54,7 +54,11 @@
   <div class="container">
     <div class="page-header">
       <h2>🏆 Torneos</h2>
-      <button class="btn btn-primary" id="btn-new-tournament" style="display:none" onclick="openNewTournamentModal()">+ Nuevo torneo</button>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-sm" id="btn-announce" style="display:none;border-color:var(--std);color:var(--std)"
+          onclick="openAnnounceModal()">📧 Anuncio</button>
+        <button class="btn btn-primary" id="btn-new-tournament" style="display:none" onclick="openNewTournamentModal()">+ Nuevo torneo</button>
+      </div>
     </div>
     <div id="quick-tools" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px"></div>
 
@@ -260,6 +264,48 @@
   </div>
 </div>
 
+<!-- MODAL: Enviar anuncio por correo -->
+<div id="modal-announce" class="modal-overlay" style="display:none" onclick="closeModal('modal-announce')">
+  <div class="modal-box" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h3>📧 Enviar anuncio por correo</h3>
+      <button class="btn btn-ghost btn-sm" onclick="closeModal('modal-announce')">✕</button>
+    </div>
+    <div class="modal-body">
+      <label class="label">Asunto del correo</label>
+      <input class="input" id="ann-subject" type="text"
+        placeholder="Ej: ¡Nuevo torneo Commander este sábado!">
+
+      <label class="label">Mensaje</label>
+      <textarea class="input" id="ann-message" rows="5"
+        style="resize:vertical;font-family:inherit"
+        placeholder="Escribe tu mensaje aquí..."></textarea>
+
+      <label class="label">Incluir datos de torneo (opcional)</label>
+      <select class="input" id="ann-tournament">
+        <option value="">— Sin torneo específico —</option>
+      </select>
+
+      <div id="ann-preview" style="display:none;margin-top:10px;padding:12px;
+        background:var(--dark3);border:1px solid var(--border);border-radius:var(--radius);
+        font-size:12px;color:var(--muted)">
+        Vista previa del torneo seleccionado
+      </div>
+
+      <p style="font-size:12px;color:var(--muted);margin-top:10px">
+        📨 Se enviará a todos los usuarios registrados en la plataforma.
+      </p>
+      <p id="ann-status" style="font-size:13px;min-height:20px;margin-top:6px"></p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-announce')">Cancelar</button>
+      <button class="btn btn-primary" onclick="sendAnnouncement()" id="btn-send-announce">
+        📧 Enviar correo
+      </button>
+    </div>
+  </div>
+</div>
+
 <!-- TOAST -->
 <div id="toast" class="toast"></div>
 
@@ -273,6 +319,7 @@
 <script src="js/game-app.js"></script>
 <script src="js/realtime.js"></script>
 <script src="js/rooms.js"></script>
+<script src="js/announce.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>
