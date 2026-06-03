@@ -71,14 +71,16 @@ async function onAuthSuccess(user) {
   document.getElementById('nav-username').textContent = name;
 
   const roleEl = document.getElementById('nav-role');
+  const btnTournament = document.getElementById('btn-new-tournament');
+  const btnAnnounce   = document.getElementById('btn-announce');
   if (isAdmin) {
     roleEl.style.display = '';
-    document.getElementById('btn-new-tournament').style.display = '';
-    document.getElementById('btn-announce').style.display = '';
+    if (btnTournament) btnTournament.style.display = '';
+    if (btnAnnounce)   btnAnnounce.style.display   = '';
   } else {
     roleEl.style.display = 'none';
-    document.getElementById('btn-new-tournament').style.display = 'none';
-    document.getElementById('btn-announce').style.display = 'none';
+    if (btnTournament) btnTournament.style.display = 'none';
+    if (btnAnnounce)   btnAnnounce.style.display   = 'none';
   }
 
   showScreen('screen-dashboard');
