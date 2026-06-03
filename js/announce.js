@@ -81,12 +81,14 @@ async function sendAnnouncement() {
     // Obtener token del usuario actual
     const { data: { session } } = await _supabase.auth.getSession();
     const token = session?.access_token;
+    if (!token) { showToast('Sesión expirada — recarga la página'); return; }
 
     const res = await fetch(ANNOUNCE_FN_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
+        'Authorization': `Bearer ${token}`,
+        'apikey': SUPABASE_ANON_KEY
       },
       body: JSON.stringify({ subject, message, tournament_id: tournamentId })
     });
@@ -113,9 +115,12 @@ async function sendAnnouncement() {
 }
 
 async function getUserCount() {
-  // Contar perfiles registrados como aproximación
+  // Contar usuarios de Auth directamente
+  const { data } = await _supabase.auth.admin?.listUsers?.() || {};
+  if (data?.users) return data.users.length;
+  // Fallback: contar perfiles
   const { count } = await _supabase
     .from('profiles')
     .select('*', { count: 'exact', head: true });
-  return count || 0;
+  return count || '?';
 }
