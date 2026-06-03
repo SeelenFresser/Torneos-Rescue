@@ -85,12 +85,12 @@ async function sendAnnouncement() {
 
     const res = await fetch(ANNOUNCE_FN_URL, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
-        'apikey': SUPABASE_ANON_KEY
-      },
-      body: JSON.stringify({ subject, message, tournament_id: tournamentId })
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        subject, message,
+        tournament_id: tournamentId,
+        admin_secret: 'rescuetcg_admin_2026'
+      })
     });
 
     const result = await res.json();
