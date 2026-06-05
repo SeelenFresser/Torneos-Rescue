@@ -39,6 +39,64 @@ function openFreeLifeCounter(mode) {
   renderFreeApp();
 }
 
+// ===== PARTIDA AMISTOSA BEYBLADE =====
+function openFreeBeybladeMatch() {
+  AudioFX.tap();
+  document.getElementById('game-title').textContent = '🌀 Beyblade';
+  document.getElementById('game-player-name').textContent = 'Partida amistosa';
+  showScreen('screen-game');
+
+  const content = document.getElementById('game-content');
+  content.style.padding = '8px 12px';
+
+  // Pedir nombres antes de iniciar
+  gameState = {
+    freeMode: true, tournament: { type: 'beyblade' },
+    players: [], freePlayers: null,
+    lifePoints: {}, commanderDmg: {},
+    beyPtsMe: 0, beyPtsOpp: 0,
+    beyWinsMe: 0, beyWinsOpp: 0,
+    beyBattleLog: [],
+    myPlayer: { name: 'Jugador 1' },
+    beyOppName: 'Jugador 2',
+    activeGame: 'bey'
+  };
+
+  content.innerHTML = `
+    <div style="max-width:360px;margin:0 auto">
+      <div style="text-align:center;margin-bottom:20px">
+        <div style="font-size:40px">🌀</div>
+        <h2 style="font-size:18px;font-weight:700;margin-top:6px">Partida amistosa</h2>
+        <p style="font-size:13px;color:var(--muted);margin-top:4px">Beyblade X · Bo3 · First to 4pts</p>
+      </div>
+      <div class="section">
+        <div class="section-body">
+          <label class="label">Tu nombre</label>
+          <input class="input" id="bey-p1-name" type="text" placeholder="Jugador 1" value="Jugador 1">
+          <label class="label">Oponente</label>
+          <input class="input" id="bey-p2-name" type="text" placeholder="Jugador 2" value="Jugador 2">
+          <button class="btn btn-primary w-full" onclick="startFreeBeybladeMatch()" style="margin-top:4px">
+            🌀 ¡Iniciar partida!
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function startFreeBeybladeMatch() {
+  const p1 = document.getElementById('bey-p1-name')?.value.trim() || 'Jugador 1';
+  const p2 = document.getElementById('bey-p2-name')?.value.trim() || 'Jugador 2';
+  gameState.myPlayer = { name: p1 };
+  gameState.beyOppName = p2;
+  gameState.beyPtsMe = 0; gameState.beyPtsOpp = 0;
+  gameState.beyWinsMe = 0; gameState.beyWinsOpp = 0;
+  gameState.beyBattleLog = [];
+  document.getElementById('game-player-name').textContent = p1 + ' vs ' + p2;
+  AudioFX.roundStart();
+  renderBeyGameApp(document.getElementById('game-content'));
+}
+
 function openFreeSpinner() {
   gameState = {
     freeMode: true, tournament: null, activeGame: 'spin',
@@ -81,10 +139,10 @@ function updateSpinPlayer(id, name) {
 }
 
 function leaveGame() {
+  const wasFree = gameState.freeMode;
   gameState = { tournament:null, players:[], myPlayer:null, lifePoints:{}, commanderDmg:{}, activeGame:'life', freeMode:false };
-  if (gameState.freeMode || !currentTournament) showScreen('screen-dashboard');
+  if (wasFree || !currentTournament) showScreen('screen-dashboard');
   else showScreen('screen-tournament');
-  showScreen('screen-dashboard');
 }
 
 // ===== FREE APP LAYOUT =====
@@ -422,6 +480,7 @@ function renderBeyGameApp(content) {
   gameState.beyBattleLog = gameState.beyBattleLog ?? [];
 
   const p1 = escHtml(gameState.myPlayer?.name || 'Jugador 1');
+  const p2 = escHtml(gameState.beyOppName || 'Oponente');
   const WIN_PTS = 4;
 
   content.innerHTML = `
@@ -452,7 +511,7 @@ function renderBeyGameApp(content) {
       <!-- Oponente -->
       <div style="background:linear-gradient(135deg,#3E0D0D,#C01515);border:2px solid #E53935;
         border-radius:var(--radius-lg);padding:12px;text-align:center">
-        <div style="font-size:12px;font-weight:700;color:#FFCDD2;margin-bottom:4px">Oponente</div>
+        <div style="font-size:12px;font-weight:700;color:#FFCDD2;margin-bottom:4px">${p2}</div>
         <div style="font-size:52px;font-weight:900;color:#fff;line-height:1" id="bey-pts-opp">${gameState.beyPtsOpp}</div>
         <div style="font-size:11px;color:#FFCDD2;margin-top:2px">pts esta batalla</div>
         <div style="font-size:18px;font-weight:700;color:#E53935;margin-top:4px">
