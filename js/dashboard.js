@@ -103,6 +103,11 @@ async function createTournament() {
 async function deleteTournament(id, event) {
   event.stopPropagation();
   if (!confirm('¿Eliminar este torneo? Se borrarán todos los jugadores y partidos.')) return;
+
+  // Borrar en orden por las foreign keys
+  await _supabase.from('pod_sessions').delete().eq('tournament_id', id);
+  await _supabase.from('matches').delete().eq('tournament_id', id);
+  await _supabase.from('players').delete().eq('tournament_id', id);
   const { error } = await _supabase.from('tournaments').delete().eq('id', id);
   if (error) { showToast('Error: ' + error.message); return; }
   showToast('Torneo eliminado');
