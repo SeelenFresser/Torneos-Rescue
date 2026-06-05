@@ -9,6 +9,11 @@ function _debouncedRefresh(delay = 800) {
   _realtimeDebounceTimer = setTimeout(async () => {
     await loadPlayers();
     refreshCurrentView();
+    // Si hay rondas de swiss, recargar explícitamente
+    if (currentTournament?.format === 'swiss' || currentTournament?.format === 'elimination') {
+      const body = document.getElementById('swiss-rounds-body');
+      if (body) await loadSwissRounds();
+    }
   }, delay);
 }
 
