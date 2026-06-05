@@ -40,13 +40,44 @@ function openFreeLifeCounter(mode) {
 }
 
 function openFreeSpinner() {
-  gameState = { freeMode: true, tournament: null, players: [], activeGame: 'spin', lifePoints: {}, commanderDmg: {} };
+  gameState = {
+    freeMode: true, tournament: null, activeGame: 'spin',
+    lifePoints: {}, commanderDmg: {},
+    freePlayers: [
+      {id:'fp1',name:'Jugador 1'},{id:'fp2',name:'Jugador 2'},
+      {id:'fp3',name:'Jugador 3'},{id:'fp4',name:'Jugador 4'}
+    ],
+    players: []
+  };
   document.getElementById('game-title').textContent = '🎲 Dados & Ruleta';
   document.getElementById('game-player-name').textContent = 'Modo libre';
   showScreen('screen-game');
   const content = document.getElementById('game-content');
-  content.innerHTML = '';
-  renderSpinContent(content);
+  content.style.padding = '8px 12px';
+
+  // Mostrar editor de nombres + spinner
+  content.innerHTML = `
+    <div class="section" style="margin-bottom:12px">
+      <div class="section-head">
+        <span class="section-title">👥 Jugadores para la ruleta</span>
+      </div>
+      <div class="section-body" style="padding:10px 16px">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px" id="spin-player-names">
+          ${gameState.freePlayers.map(p=>`
+            <input class="input input-sm" value="${escHtml(p.name)}"
+              onchange="updateSpinPlayer('${p.id}',this.value)"
+              style="margin-bottom:0">`).join('')}
+        </div>
+      </div>
+    </div>
+    <div id="spin-content-area"></div>
+  `;
+  renderSpinContent(document.getElementById('spin-content-area'));
+}
+
+function updateSpinPlayer(id, name) {
+  const p = gameState.freePlayers?.find(p=>p.id===id);
+  if (p) p.name = name;
 }
 
 function leaveGame() {
@@ -219,6 +250,7 @@ let spinInterval = null;
 
 function renderSpinContent(el) {
   const players = gameState.freePlayers?.map(p => p.name) || gameState.players?.map(p => p.name) || ['J1','J2','J3','J4'];
+  const isFreeSpinner = !gameState.freePlayers && !gameState.players?.length;
   el.innerHTML = `
     <div class="section" style="margin-bottom:12px">
       <div class="section-head"><span class="section-title">🎲 ¿Quién empieza?</span></div>
@@ -246,8 +278,9 @@ function renderSpinContent(el) {
 
 function doSpin() {
   AudioFX.roundStart();
-  const players = gameState.freePlayers?.map(p=>p.name) || gameState.players?.map(p=>p.name) || [];
-  if (!players.length) { showToast('Sin jugadores'); return; }
+  let players = gameState.freePlayers?.map(p=>p.name) || gameState.players?.map(p=>p.name) || [];
+  // Si no hay jugadores, usar placeholders
+  if (!players.length) players = ['Jugador 1','Jugador 2','Jugador 3','Jugador 4'];
   const nameEl = document.getElementById('spin-name');
   const iconEl = document.getElementById('spin-icon');
   const emojis = ['🐇','⚡','🌀','🔥','✨','💥','🎯','⚔️'];
