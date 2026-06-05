@@ -218,7 +218,7 @@ function renderAdminPods(sessions, allSessions=[]) {
             const r = resultData[p.id]||{};
             const place = r.place||si+1;
             const kills = r.kills||0;
-            const pts = isCEDH ? kills+(place===1?1:0) : getPts(ptsSystem,place,players.length);
+            const pts = isCEDH ? (r.kills||0)+(place===1?1:0) : getPts(ptsSystem,place,players.length);
             return `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;
               border-bottom:1px solid var(--border);
               ${place===1?'background:rgba(61,212,160,0.05);border-radius:6px;padding:6px 8px;':''}">
@@ -233,18 +233,24 @@ function renderAdminPods(sessions, allSessions=[]) {
           <!-- ENTRADA DE RESULTADOS -->
           ${isCEDH ? `
             <p style="font-size:11px;color:var(--muted);margin-bottom:8px">
-              Ingresa kills de cada jugador. Ganador = más kills (+1pt extra)
+              Selecciona el <strong>orden de eliminación</strong>. 
+              El último en pie = 1°, el penúltimo = 2°, etc.
             </p>
             ${players.map((p,si)=>`
               <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
                 <div class="seat-num">${si+1}</div>
                 <div style="flex:1;font-size:13px">${escHtml(p.name)}</div>
-                <input class="score-in" id="admin-pod${pi}-kills${si}"
-                  type="number" min="0" max="${players.length-1}" placeholder="kills"
-                  style="width:56px"
-                  value="${resultData[p.id]?.kills??''}">
-                <span style="font-size:11px;color:var(--muted)">💀</span>
+                <select class="place-sel" id="admin-pod${pi}-seat${si}">
+                  <option value="">lugar</option>
+                  <option value="1" ${resultData[p.id]?.place===1?'selected':''}>👑 1° Ganador</option>
+                  <option value="2" ${resultData[p.id]?.place===2?'selected':''}>🥈 2° Último eliminado</option>
+                  <option value="3" ${resultData[p.id]?.place===3?'selected':''}>🥉 3° Eliminado</option>
+                  ${players.length>=4?`<option value="4" ${resultData[p.id]?.place===4?'selected':''}>4️⃣ 4° Primer eliminado</option>`:''}
+                </select>
               </div>`).join('')}
+            <p style="font-size:10px;color:var(--muted);margin-top:4px">
+              Puntos: 1°=1pt(victoria) · kills se registran en la app del jugador
+            </p>
           ` : `
             ${players.map((p,si)=>`
               <div class="pod-player-row">
@@ -339,18 +345,18 @@ async function confirmPod(podIdx) {
   let resultData = {};
 
   if (isCEDH) {
-    let maxKills = -1, winnerId = null;
-    players.forEach((p,si)=>{
-      const kills = parseInt(document.getElementById(`admin-pod${podIdx}-kills${si}`)?.value)||0;
-      resultData[p.id] = {kills, place:0};
-      if (kills>maxKills) { maxKills=kills; winnerId=p.id; }
-    });
-    // Ganador = más kills (desempate: el que mató al último)
-    resultData[winnerId].place = 1;
-    let place=2;
-    Object.keys(resultData).filter(id=>id!==winnerId)
-      .sort((a,b)=>resultData[b].kills-resultData[a].kills)
-      .forEach(id=>{ resultData[id].place=place++; });
+    // En cEDH el lugar lo determina el orden de eliminación
+    const places = players.map((_,si)=>parseInt(document.getElementById(`admin-pod${podIdx}-seat${si}`)?.value)||0);
+    if (places.some(v=>v===0)) { showToast(`Pod ${s.pod_number}: asigna todos los lugares`); return; }
+    if (new Set(places).size!==podSize) { showToast(`Pod ${s.pod_number}: lugares duplicados`); return; }
+    players.forEach((p,si)=>{ resultData[p.id]={place:places[si], kills:0}; });
+    // Integrar kills reportados por jugadores (si los hay)
+    if (s.result_data) {
+      const prev = JSON.parse(s.result_data);
+      players.forEach(p=>{
+        if (prev[p.id]?.kills) resultData[p.id].kills = prev[p.id].kills;
+      });
+    }
   } else {
     const places = players.map((_,si)=>parseInt(document.getElementById(`admin-pod${podIdx}-seat${si}`)?.value)||0);
     if (places.some(v=>v===0)) { showToast(`Pod ${s.pod_number}: asigna todos los lugares`); return; }
