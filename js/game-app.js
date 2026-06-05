@@ -404,37 +404,119 @@ function renderGameTab(tab) {
   }
 }
 
-// ===== BEYBLADE IN TOURNAMENT =====
+// ===== BEYBLADE — Sistema de puntos oficial =====
+// Draw=0 · Spin=1 · Burst=2 · Over=2 · Xtreme=3 · primero en 4pts gana la batalla
+const BEY_FINISH_TYPES = [
+  { key:'draw',    label:'DRAW',    pts:0, color:'#888',    emoji:'🤝' },
+  { key:'spin',    label:'SPIN',    pts:1, color:'#2196F3',  emoji:'🌀' },
+  { key:'burst',   label:'BURST',   pts:2, color:'#E53935',  emoji:'💥' },
+  { key:'over',    label:'OVER',    pts:2, color:'#FF9800',  emoji:'🔥' },
+  { key:'xtreme',  label:'XTREME',  pts:3, color:'#9C27B0',  emoji:'⚡' },
+];
+
 function renderBeyGameApp(content) {
+  gameState.beyPtsMe    = gameState.beyPtsMe    ?? 0;
+  gameState.beyPtsOpp   = gameState.beyPtsOpp   ?? 0;
+  gameState.beyWinsMe   = gameState.beyWinsMe   ?? 0;
+  gameState.beyWinsOpp  = gameState.beyWinsOpp  ?? 0;
+  gameState.beyBattleLog = gameState.beyBattleLog ?? [];
+
+  const p1 = escHtml(gameState.myPlayer?.name || 'Jugador 1');
+  const WIN_PTS = 4;
+
   content.innerHTML = `
-    <div class="section">
-      <div class="section-head"><span class="section-title">🌀 Beyblade Bo3</span></div>
-      <div class="section-body">
-        <div class="bey-score-wrap">
-          <div class="bey-score-player">
-            <div class="bey-score-name text-pink">${escHtml(gameState.myPlayer?.name||'J1')}</div>
-            <div class="bey-score-num text-pink" id="bey-my-score">0</div>
-            <div class="bey-score-controls">
-              <button class="life-btn minus" onclick="changeBeyScore('me',-1)">−</button>
-              <button class="life-btn plus"  onclick="changeBeyScore('me',+1)">+1</button>
-            </div>
-          </div>
-          <div class="bey-score-vs">VS</div>
-          <div class="bey-score-player">
-            <div class="bey-score-name">Oponente</div>
-            <div class="bey-score-num" id="bey-opp-score">0</div>
-            <div class="bey-score-controls">
-              <button class="life-btn minus" onclick="changeBeyScore('opp',-1)">−</button>
-              <button class="life-btn plus"  onclick="changeBeyScore('opp',+1)">+1</button>
-            </div>
-          </div>
+    <!-- MARCADOR PRINCIPAL -->
+    <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:8px;align-items:center;margin-bottom:12px">
+
+      <!-- Jugador 1 -->
+      <div style="background:linear-gradient(135deg,#0D1B3E,#1565C0);border:2px solid #2196F3;
+        border-radius:var(--radius-lg);padding:12px;text-align:center">
+        <div style="font-size:12px;font-weight:700;color:#90CAF9;margin-bottom:4px">${p1}</div>
+        <div style="font-size:52px;font-weight:900;color:#fff;line-height:1" id="bey-pts-me">${gameState.beyPtsMe}</div>
+        <div style="font-size:11px;color:#90CAF9;margin-top:2px">pts esta batalla</div>
+        <div style="font-size:18px;font-weight:700;color:#2196F3;margin-top:4px">
+          ${'🌀'.repeat(gameState.beyWinsMe)}
+          <span style="color:#555">${'○'.repeat(Math.max(0,2-gameState.beyWinsMe))}</span>
         </div>
-        <div id="bey-match-result" style="text-align:center;font-size:20px;font-weight:700;min-height:32px;margin-top:8px"></div>
-        <div style="text-align:center;margin-top:12px;display:flex;gap:8px;justify-content:center">
-          <button class="btn btn-sm" onclick="resetBeyScore()">🔄 Reset batalla</button>
+      </div>
+
+      <!-- VS / Estado -->
+      <div style="text-align:center">
+        <div style="font-size:16px;font-weight:900;color:var(--muted)">VS</div>
+        <div id="bey-battle-status" style="font-size:11px;color:var(--muted);margin-top:4px">
+          Batalla ${gameState.beyBattleLog.length + 1}
+        </div>
+        <div style="font-size:11px;color:var(--muted2);margin-top:2px">First to ${WIN_PTS}pts</div>
+      </div>
+
+      <!-- Oponente -->
+      <div style="background:linear-gradient(135deg,#3E0D0D,#C01515);border:2px solid #E53935;
+        border-radius:var(--radius-lg);padding:12px;text-align:center">
+        <div style="font-size:12px;font-weight:700;color:#FFCDD2;margin-bottom:4px">Oponente</div>
+        <div style="font-size:52px;font-weight:900;color:#fff;line-height:1" id="bey-pts-opp">${gameState.beyPtsOpp}</div>
+        <div style="font-size:11px;color:#FFCDD2;margin-top:2px">pts esta batalla</div>
+        <div style="font-size:18px;font-weight:700;color:#E53935;margin-top:4px">
+          ${'🌀'.repeat(gameState.beyWinsOpp)}
+          <span style="color:#555">${'○'.repeat(Math.max(0,2-gameState.beyWinsOpp))}</span>
         </div>
       </div>
     </div>
+
+    <!-- RESULTADO BATALLA -->
+    <div id="bey-battle-result" style="text-align:center;min-height:28px;margin-bottom:8px;
+      font-size:18px;font-weight:700"></div>
+
+    <!-- BOTONES DE FINISH TYPE -->
+    <div style="margin-bottom:10px">
+      <p style="font-size:11px;color:var(--muted);text-align:center;margin-bottom:8px">
+        ¿Cómo terminó la batalla? · Selecciona el tipo de finish
+      </p>
+
+      <!-- YO gané con... -->
+      <p style="font-size:11px;color:#90CAF9;font-weight:700;margin-bottom:5px">Yo gané con:</p>
+      <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:5px;margin-bottom:10px">
+        ${BEY_FINISH_TYPES.map(f=>`
+          <button onclick="applyBeyFinish('me','${f.key}',${f.pts})"
+            style="background:${f.color}22;border:1px solid ${f.color};border-radius:8px;
+            padding:6px 2px;cursor:pointer;transition:all 0.15s;font-family:inherit"
+            onmouseover="this.style.background='${f.color}44'" onmouseout="this.style.background='${f.color}22'">
+            <div style="font-size:14px">${f.emoji}</div>
+            <div style="font-size:9px;color:${f.color};font-weight:700">${f.label}</div>
+            <div style="font-size:11px;color:#fff;font-weight:700">+${f.pts}</div>
+          </button>`).join('')}
+      </div>
+
+      <!-- OPONENTE ganó con... -->
+      <p style="font-size:11px;color:#FFCDD2;font-weight:700;margin-bottom:5px">Oponente ganó con:</p>
+      <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:5px;margin-bottom:10px">
+        ${BEY_FINISH_TYPES.map(f=>`
+          <button onclick="applyBeyFinish('opp','${f.key}',${f.pts})"
+            style="background:${f.color}22;border:1px solid ${f.color};border-radius:8px;
+            padding:6px 2px;cursor:pointer;transition:all 0.15s;font-family:inherit"
+            onmouseover="this.style.background='${f.color}44'" onmouseout="this.style.background='${f.color}22'">
+            <div style="font-size:14px">${f.emoji}</div>
+            <div style="font-size:9px;color:${f.color};font-weight:700">${f.label}</div>
+            <div style="font-size:11px;color:#fff;font-weight:700">+${f.pts}</div>
+          </button>`).join('')}
+      </div>
+    </div>
+
+    <!-- HISTORIAL -->
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+      <span style="font-size:11px;color:var(--muted)">Historial de batallas</span>
+      <button class="btn btn-xs btn-ghost" onclick="undoBeyFinish()">↩ Deshacer</button>
+    </div>
+    <div id="bey-log" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:10px">
+      ${renderBeyLog()}
+    </div>
+
+    <!-- RESET -->
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-sm btn-ghost" style="flex:1" onclick="resetBeyBattle()">🔄 Nueva batalla</button>
+      <button class="btn btn-sm btn-danger" style="flex:1" onclick="resetBeyMatch()">✕ Nuevo match</button>
+    </div>
+
+    <!-- RULETA -->
     <div class="section" style="margin-top:12px">
       <div class="section-head"><span class="section-title">🎲 ¿Quién lanza primero?</span></div>
       <div class="section-body">
@@ -444,30 +526,106 @@ function renderBeyGameApp(content) {
           <button class="btn btn-primary" style="margin-top:8px" onclick="doBeyLaunchSpin()">🎰 Girar</button>
         </div>
       </div>
-    </div>`;
-  gameState.beyScoreMe = 0; gameState.beyScoreOpp = 0;
+    </div>
+  `;
 }
 
-function changeBeyScore(who, delta) {
-  if (who==='me') { gameState.beyScoreMe = Math.max(0,(gameState.beyScoreMe||0)+delta); document.getElementById('bey-my-score').textContent = gameState.beyScoreMe; }
-  else { gameState.beyScoreOpp = Math.max(0,(gameState.beyScoreOpp||0)+delta); document.getElementById('bey-opp-score').textContent = gameState.beyScoreOpp; }
-  delta > 0 ? AudioFX.plus() : AudioFX.minus();
-  const me=gameState.beyScoreMe||0, opp=gameState.beyScoreOpp||0;
-  const resEl = document.getElementById('bey-match-result');
-  if (resEl) {
-    if (me>=2) { resEl.innerHTML='<span style="color:var(--green)">🏆 ¡Ganaste!</span>'; AudioFX.victory(); }
-    else if (opp>=2) { resEl.innerHTML='<span style="color:var(--red)">💀 Perdiste</span>'; AudioFX.danger(); }
-    else resEl.innerHTML='';
+function renderBeyLog() {
+  if (!gameState.beyBattleLog?.length) return '<span style="color:var(--muted2);font-size:11px">Sin batallas aún</span>';
+  return gameState.beyBattleLog.map((b,i) => {
+    const f = BEY_FINISH_TYPES.find(f=>f.key===b.finishType);
+    const winner = b.winner === 'me' ? '🔵' : '🔴';
+    return `<span style="font-size:11px;padding:3px 7px;border-radius:12px;
+      background:${f?.color||'#444'}22;border:1px solid ${f?.color||'#444'};color:${f?.color||'#fff'}">
+      B${i+1} ${winner} ${f?.emoji||''} ${f?.label||''} +${b.pts}
+    </span>`;
+  }).join('');
+}
+
+function applyBeyFinish(who, finishType, pts) {
+  if (pts === 0) {
+    // Draw — nadie suma
+    gameState.beyBattleLog.push({ winner: 'draw', finishType, pts: 0 });
+    AudioFX.tap();
+    showToast('🤝 Draw — sin puntos');
+    renderBeyGameApp(document.getElementById('game-content'));
+    return;
   }
+
+  const WIN_PTS = 4;
+  if (who === 'me') {
+    gameState.beyPtsMe = (gameState.beyPtsMe || 0) + pts;
+  } else {
+    gameState.beyPtsOpp = (gameState.beyPtsOpp || 0) + pts;
+  }
+  gameState.beyBattleLog.push({ winner: who, finishType, pts });
+
+  const f = BEY_FINISH_TYPES.find(f=>f.key===finishType);
+  pts > 1 ? AudioFX.danger() : AudioFX.plus();
+
+  // Verificar si alguien ganó la batalla (primero en llegar a WIN_PTS)
+  const me = gameState.beyPtsMe || 0;
+  const opp = gameState.beyPtsOpp || 0;
+
+  if (me >= WIN_PTS || opp >= WIN_PTS) {
+    const battleWinner = me >= WIN_PTS ? 'me' : 'opp';
+    if (battleWinner === 'me') {
+      gameState.beyWinsMe = (gameState.beyWinsMe || 0) + 1;
+    } else {
+      gameState.beyWinsOpp = (gameState.beyWinsOpp || 0) + 1;
+    }
+
+    AudioFX.roundEnd();
+
+    // Verificar si ganó el match (Bo3 = 2 batallas)
+    if (gameState.beyWinsMe >= 2) {
+      setTimeout(() => {
+        showToast('🏆 ¡Ganaste el match!');
+        AudioFX.victory();
+      }, 300);
+    } else if (gameState.beyWinsOpp >= 2) {
+      setTimeout(() => {
+        showToast('💀 El oponente ganó el match');
+        AudioFX.danger();
+      }, 300);
+    } else {
+      showToast(battleWinner === 'me' ? '🌀 ¡Ganaste la batalla!' : '💀 El oponente ganó la batalla');
+    }
+
+    // Reset puntos para la siguiente batalla
+    gameState.beyPtsMe = 0;
+    gameState.beyPtsOpp = 0;
+  }
+
+  renderBeyGameApp(document.getElementById('game-content'));
 }
 
-function resetBeyScore() {
+function undoBeyFinish() {
+  if (!gameState.beyBattleLog?.length) return;
   AudioFX.tap();
-  gameState.beyScoreMe=0; gameState.beyScoreOpp=0;
-  document.getElementById('bey-my-score').textContent='0';
-  document.getElementById('bey-opp-score').textContent='0';
-  const r=document.getElementById('bey-match-result'); if(r) r.innerHTML='';
+  const last = gameState.beyBattleLog.pop();
+  if (last.winner === 'me') gameState.beyPtsMe = Math.max(0, (gameState.beyPtsMe||0) - last.pts);
+  else if (last.winner === 'opp') gameState.beyPtsOpp = Math.max(0, (gameState.beyPtsOpp||0) - last.pts);
+  renderBeyGameApp(document.getElementById('game-content'));
 }
+
+function resetBeyBattle() {
+  AudioFX.tap();
+  gameState.beyPtsMe = 0;
+  gameState.beyPtsOpp = 0;
+  renderBeyGameApp(document.getElementById('game-content'));
+}
+
+function resetBeyMatch() {
+  AudioFX.tap();
+  gameState.beyPtsMe = 0; gameState.beyPtsOpp = 0;
+  gameState.beyWinsMe = 0; gameState.beyWinsOpp = 0;
+  gameState.beyBattleLog = [];
+  renderBeyGameApp(document.getElementById('game-content'));
+}
+
+function changeBeyScore(who, delta) {} // legacy - ya no se usa
+function resetBeyScore() { resetBeyBattle(); }
 
 function doBeyLaunchSpin() {
   AudioFX.roundStart();
