@@ -153,7 +153,10 @@ function renderSwissMatch(m, round) {
 
   const isBye = !m.player2_id;
 
-  return `<div class="match-card" id="match-${m.id}">
+  // Resultado reportado por jugador pero no confirmado por admin
+  const reported = m.result_reported && !m.is_complete;
+
+  return `<div class="match-card" id="match-${m.id}" style="${reported?'border-color:var(--cream)':''}">
     <div class="match-player ${w1}">${escHtml(p1name)}</div>
     <div class="match-vs">vs</div>
     ${isBye ? `
@@ -164,6 +167,16 @@ function renderSwissMatch(m, round) {
       <div class="match-actions">
         ${m.is_complete
           ? `<span class="pill pill-w">${m.score_p1}–${m.score_p2}</span>`
+          : reported && owner
+          ? `<div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end">
+               <span style="font-size:10px;color:var(--cream)">📤 Reportado: ${m.score_p1}–${m.score_p2}</span>
+               <div class="score-wrap">
+                 <input class="score-in" id="m${m.id}-s1" type="number" min="0" max="2" placeholder="${m.score_p1??0}" value="${m.score_p1??''}" onchange="autoSaveSwissScore('${m.id}')">
+                 <span class="score-sep">–</span>
+                 <input class="score-in" id="m${m.id}-s2" type="number" min="0" max="2" placeholder="${m.score_p2??0}" value="${m.score_p2??''}" onchange="autoSaveSwissScore('${m.id}')">
+                 <button class="result-btn result-btn-confirm" onclick="confirmSwissMatch('${m.id}')">✓</button>
+               </div>
+             </div>`
           : owner && active && isCurrent
           ? `<div class="score-wrap">
                <input class="score-in" id="m${m.id}-s1" type="number" min="0" max="2" placeholder="0" onchange="autoSaveSwissScore('${m.id}')">
@@ -171,6 +184,8 @@ function renderSwissMatch(m, round) {
                <input class="score-in" id="m${m.id}-s2" type="number" min="0" max="2" placeholder="0" onchange="autoSaveSwissScore('${m.id}')">
                <button class="result-btn result-btn-confirm" onclick="confirmSwissMatch('${m.id}')">✓</button>
              </div>`
+          : reported
+          ? `<span style="color:var(--cream);font-size:12px">📤 ${m.score_p1}–${m.score_p2} · esperando admin</span>`
           : `<span style="color:var(--muted);font-size:12px">Pendiente</span>`}
       </div>
     `}
