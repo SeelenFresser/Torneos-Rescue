@@ -130,6 +130,10 @@ async function loadDashboard() {
       style="border-color:var(--std);color:var(--std)">
       🃏 Contador (20 PV)
     </button>
+    <button class="btn" onclick="openFreeBeybladeMatch()"
+      style="border-color:var(--bey);color:var(--bey);font-weight:700">
+      🌀 Beyblade — Partida amistosa
+    </button>
     <button class="btn" onclick="openFreeSpinner()"
       style="border-color:var(--bey);color:var(--bey)">
       🎲 Dados & Ruleta
