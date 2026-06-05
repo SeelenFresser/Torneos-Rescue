@@ -710,40 +710,55 @@ function doBeyLaunchSpin() {
 
 // ===== AUTO-SUBMIT BEYBLADE RESULT =====
 async function autoSubmitBeyResult(iWon) {
-  if (!gameState.tournament?.id || !gameState.myPlayer) return;
+  if (!gameState.tournament?.id || !gameState.myPlayer) {
+    console.log('autoSubmit: missing tournament or player', gameState.tournament?.id, gameState.myPlayer);
+    return;
+  }
 
-  const myId    = gameState.myPlayer.id;
-  const oppId   = gameState.players?.find(p => p.id !== myId)?.id;
+  const myId     = gameState.myPlayer.id;
+  const oppId    = gameState.players?.find(p => p.id !== myId)?.id;
   const winnerId = iWon ? myId : oppId;
 
-  // Buscar el match en la ronda actual
-  const matchType = gameState.tournament.format === 'swiss' ? 'swiss' : 'elimination';
-  const { data: matches } = await _supabase
-    .from('matches').select('*')
+  console.log('autoSubmit:', {myId, oppId, winnerId, iWon, tournament: gameState.tournament});
+
+  // Buscar el match — buscar por player_id sin filtrar por ronda/formato
+  // para ser más robusto
+  const { data: matches, error } = await _supabase
+    .from('matches')
+    .select('*')
     .eq('tournament_id', gameState.tournament.id)
-    .eq('round', gameState.tournament.current_round)
-    .eq('match_type', matchType);
+    .eq('is_complete', false)
+    .or(`player1_id.eq.${myId},player2_id.eq.${myId}`);
 
-  if (!matches) return;
-  const myMatch = matches.find(m =>
-    m.player1_id === myId || m.player2_id === myId
-  );
-  if (!myMatch || myMatch.is_complete) return;
+  console.log('autoSubmit matches:', matches, error);
 
-  // Calcular score Bo3
-  const s1 = myMatch.player1_id === myId ? gameState.beyWinsMe : gameState.beyWinsOpp;
-  const s2 = myMatch.player1_id === myId ? gameState.beyWinsOpp : gameState.beyWinsMe;
+  if (!matches || !matches.length) {
+    showToast('No se encontró el partido activo');
+    return;
+  }
 
-  // Guardar resultado (pendiente de confirmación del admin)
-  await _supabase.from('matches').update({
+  const myMatch = matches[0];
+
+  // Calcular score Bo3 correctamente
+  const iAmP1 = myMatch.player1_id === myId;
+  const s1 = iAmP1 ? gameState.beyWinsMe  : gameState.beyWinsOpp;
+  const s2 = iAmP1 ? gameState.beyWinsOpp : gameState.beyWinsMe;
+
+  const { error: updateErr } = await _supabase.from('matches').update({
     score_p1: s1,
     score_p2: s2,
     winner_id: winnerId,
-    is_complete: false, // admin debe confirmar
+    is_complete: false,
     result_reported: true
   }).eq('id', myMatch.id);
 
-  showToast('📤 Resultado enviado — esperando confirmación del admin');
+  if (updateErr) {
+    console.error('autoSubmit error:', updateErr);
+    showToast('Error al enviar resultado: ' + updateErr.message);
+    return;
+  }
+
+  showToast('📤 Resultado enviado al admin (' + s1 + '–' + s2 + ')');
 }
 
 // ===== WINNER POPUP =====
