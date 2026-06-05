@@ -89,6 +89,14 @@ function renderSwissView() {
   `;
 
   loadSwissRounds();
+  // Poll cada 10s para resultados reportados por jugadores
+  if (isOwner() && currentTournament.status === 'active') {
+    clearInterval(window._swissPollTimer);
+    window._swissPollTimer = setInterval(async () => {
+      const body = document.getElementById('swiss-rounds-body');
+      if (body) await loadSwissRounds();
+    }, 10000);
+  }
 }
 
 async function startSwiss() {
