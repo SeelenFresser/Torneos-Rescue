@@ -462,6 +462,7 @@ function showWinnerPopup(players) {
   const isMultiple = top.length > 1;
 
   const overlay = document.createElement('div');
+  overlay.id = 'winner-popup-overlay';
   overlay.style.cssText = `
     position:fixed;inset:0;background:rgba(0,0,0,0.85);
     display:flex;align-items:center;justify-content:center;
@@ -488,7 +489,7 @@ function showWinnerPopup(players) {
           <span>${i+1}. ${escHtml(p.name)}</span>
           <span>${p.points}pts</span>
         </div>`).join('')}
-      <button class="btn btn-primary w-full" style="margin-top:20px" onclick="this.closest('[style]').remove()">
+      <button class="btn btn-primary w-full" style="margin-top:20px" onclick="document.getElementById('winner-popup-overlay').remove()">
         Cerrar
       </button>
     </div>`;
