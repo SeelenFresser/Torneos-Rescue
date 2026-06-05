@@ -148,67 +148,173 @@ function buildPods(sorted) {
   return pods;
 }
 
-// ── CARGAR Y MOSTRAR PODS ────────────────────────────────
+// ── CARGAR Y MOSTRAR PODS (todas las rondas) ────────────
 async function loadAndShowCurrentPods() {
-  const {data:sessions} = await _supabase.from('pod_sessions').select('*')
+  // Cargar ronda actual para edición
+  const {data:current} = await _supabase.from('pod_sessions').select('*')
     .eq('tournament_id',currentTournament.id)
     .eq('round',currentTournament.current_round)
     .order('pod_number');
 
-  if (!sessions||!sessions.length) return;
-  window._cmdrSessions = sessions;
-  renderAdminPods(sessions);
+  if (!current||!current.length) return;
+  window._cmdrSessions = current;
+
+  // Cargar todas las rondas anteriores para historial
+  const {data:allSessions} = await _supabase.from('pod_sessions').select('*')
+    .eq('tournament_id',currentTournament.id)
+    .order('round', {ascending:false})
+    .order('pod_number');
+
+  renderAdminPods(current, allSessions||[]);
 }
 
-function renderAdminPods(sessions) {
+const PLACE_ICONS = ['👑','🥈','🥉','4️⃣'];
+
+function renderAdminPods(sessions, allSessions=[]) {
   const body = document.getElementById('cmdr-pods-body');
   if (!body) return;
   const ptsSystem = currentTournament.points_system||'standard';
   const isCEDH = ptsSystem==='cedh';
   const owner = isOwner();
+  const currentRound = currentTournament.current_round||0;
 
-  body.innerHTML = `<div class="pod-grid">
+  // Agrupar historial por ronda
+  const byRound = {};
+  allSessions.forEach(s => {
+    if (!byRound[s.round]) byRound[s.round] = [];
+    byRound[s.round].push(s);
+  });
+
+  let html = '';
+
+  // ── RONDA ACTUAL (editable) ──
+  html += `<div style="margin-bottom:16px">
+    <div style="font-size:12px;font-weight:700;color:var(--magic);text-transform:uppercase;
+      letter-spacing:0.5px;margin-bottom:8px">Ronda ${currentRound} — En curso</div>
+    <div class="pod-grid">
     ${sessions.map((s,pi) => {
       const playerIds = JSON.parse(s.player_ids||'[]');
       const playerNames = JSON.parse(s.player_names||'[]');
-      const resultData = s.result_data ? JSON.parse(s.result_data) : null;
+      const resultData = s.result_data ? JSON.parse(s.result_data) : {};
       const confirmed = s.is_confirmed;
-
       const players = playerIds.map((id,i)=>({id,name:playerNames[i]||'?'}));
 
-      return `<div class="pod-box" style="${confirmed?'border-color:var(--green)':''}">
-        <div class="pod-name" style="display:flex;align-items:center;justify-content:space-between">
+      // Sort by place for confirmed pods
+      const sortedPlayers = confirmed
+        ? [...players].sort((a,b)=>(resultData[a.id]?.place||99)-(resultData[b.id]?.place||99))
+        : players;
+
+      return `<div class="pod-box" style="border-color:${confirmed?'var(--green)':'var(--border)'}">
+        <div class="pod-name" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
           <span>Pod ${s.pod_number} · ${players.length}p</span>
-          <span style="font-size:11px;color:${confirmed?'var(--green)':'var(--muted)'}">${confirmed?'✓ Confirmado':'Pendiente'}</span>
+          <span style="font-size:11px;color:${confirmed?'var(--green)':'var(--muted)'}">
+            ${confirmed?'✓ Confirmado':'Pendiente'}
+          </span>
         </div>
-        ${players.map((p,si)=>`
-          <div class="pod-player-row">
-            <div class="seat-num">${si+1}</div>
-            <div class="pod-pname">${escHtml(p.name)}</div>
-            ${owner&&!confirmed ? isCEDH
-              ? `<span style="font-size:11px;color:var(--muted)">${resultData?.[p.id]?.kills??'—'} kills</span>`
-              : `<select class="place-sel" id="admin-pod${pi}-seat${si}" onchange="saveAdminPlacement(${pi})">
-                  <option value="">lugar</option>
-                  ${players.map((_,i)=>`<option value="${i+1}" ${resultData?.[p.id]?.place===i+1?'selected':''}>${i+1}°</option>`).join('')}
-                </select>`
-            : `<span style="font-size:12px;color:var(--muted)">${isCEDH?(resultData?.[p.id]?.kills??0)+' kills':(resultData?.[p.id]?.place??'—')+'°'}</span>`}
-          </div>`).join('')}
-        ${owner&&!confirmed&&isCEDH?`
-          <div style="margin-top:8px">
+
+        ${confirmed ? `
+          <!-- RESULTADO CONFIRMADO -->
+          ${sortedPlayers.map((p,si)=>{
+            const r = resultData[p.id]||{};
+            const place = r.place||si+1;
+            const kills = r.kills||0;
+            const pts = isCEDH ? kills+(place===1?1:0) : getPts(ptsSystem,place,players.length);
+            return `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;
+              border-bottom:1px solid var(--border);
+              ${place===1?'background:rgba(61,212,160,0.05);border-radius:6px;padding:6px 8px;':''}">
+              <span style="font-size:16px">${PLACE_ICONS[place-1]||place+'°'}</span>
+              <span style="flex:1;font-size:13px;font-weight:${place===1?'700':'400'};
+                color:${place===1?'var(--green)':'var(--text)'}">${escHtml(p.name)}</span>
+              ${isCEDH?`<span style="font-size:12px;color:var(--muted)">${kills} 💀</span>`:''}
+              <span style="font-size:12px;color:var(--magic);font-weight:600">+${pts}pts</span>
+            </div>`;
+          }).join('')}
+        ` : `
+          <!-- ENTRADA DE RESULTADOS -->
+          ${isCEDH ? `
+            <p style="font-size:11px;color:var(--muted);margin-bottom:8px">
+              Ingresa kills de cada jugador. Ganador = más kills (+1pt extra)
+            </p>
             ${players.map((p,si)=>`
-              <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
-                <span style="font-size:12px;flex:1">${escHtml(p.name)}</span>
-                <input class="score-in" id="admin-pod${pi}-kills${si}" type="number" min="0" max="${players.length-1}"
-                  placeholder="kills" style="width:52px" value="${resultData?.[p.id]?.kills??''}"
-                  onchange="saveAdminCEDH(${pi})">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+                <div class="seat-num">${si+1}</div>
+                <div style="flex:1;font-size:13px">${escHtml(p.name)}</div>
+                <input class="score-in" id="admin-pod${pi}-kills${si}"
+                  type="number" min="0" max="${players.length-1}" placeholder="kills"
+                  style="width:56px"
+                  value="${resultData[p.id]?.kills??''}">
+                <span style="font-size:11px;color:var(--muted)">💀</span>
               </div>`).join('')}
-          </div>` : ''}
-        ${owner&&!confirmed?`
-          <button class="btn btn-sm w-full" style="margin-top:8px;border-color:var(--green);color:var(--green)"
-            onclick="confirmPod(${pi})">✓ Confirmar pod</button>`:''}
+          ` : `
+            ${players.map((p,si)=>`
+              <div class="pod-player-row">
+                <div class="seat-num">${si+1}</div>
+                <div class="pod-pname">${escHtml(p.name)}</div>
+                <select class="place-sel" id="admin-pod${pi}-seat${si}">
+                  <option value="">lugar</option>
+                  ${players.map((_,i)=>`<option value="${i+1}"
+                    ${resultData[p.id]?.place===i+1?'selected':''}>${i+1}°</option>`).join('')}
+                </select>
+              </div>`).join('')}
+          `}
+          ${owner?`<button class="btn btn-sm w-full" style="margin-top:10px;border-color:var(--green);color:var(--green)"
+            onclick="confirmPod(${pi})">✓ Confirmar Pod ${s.pod_number}</button>`:''}
+        `}
       </div>`;
     }).join('')}
+    </div>
   </div>`;
+
+  // ── HISTORIAL DE RONDAS ANTERIORES ──
+  const prevRounds = Object.keys(byRound)
+    .map(Number)
+    .filter(r => r < currentRound)
+    .sort((a,b) => b-a);
+
+  if (prevRounds.length > 0) {
+    html += `<hr style="border-color:var(--border);margin:16px 0">
+    <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;
+      letter-spacing:0.5px;margin-bottom:12px">Historial de rondas</div>`;
+
+    prevRounds.forEach(rn => {
+      const roundSessions = byRound[rn].filter(s=>s.is_confirmed);
+      if (!roundSessions.length) return;
+
+      html += `<div style="margin-bottom:14px">
+        <div style="font-size:12px;color:var(--muted);margin-bottom:6px;font-weight:600">
+          Ronda ${rn}
+        </div>
+        <div class="pod-grid">`;
+
+      roundSessions.forEach(s => {
+        const playerIds = JSON.parse(s.player_ids||'[]');
+        const playerNames = JSON.parse(s.player_names||'[]');
+        const resultData = s.result_data ? JSON.parse(s.result_data) : {};
+        const players = playerIds.map((id,i)=>({id,name:playerNames[i]||'?'}));
+        const sorted = [...players].sort((a,b)=>(resultData[a.id]?.place||99)-(resultData[b.id]?.place||99));
+
+        html += `<div class="pod-box" style="opacity:0.85;border-color:var(--border)">
+          <div class="pod-name" style="margin-bottom:8px">Pod ${s.pod_number}</div>
+          ${sorted.map(p=>{
+            const r = resultData[p.id]||{};
+            const place = r.place||'?';
+            const kills = r.kills||0;
+            const pts = isCEDH ? kills+(place===1?1:0) : (place!=='?'?getPts(ptsSystem,place,players.length):0);
+            return `<div style="display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid var(--border)">
+              <span style="font-size:14px">${PLACE_ICONS[place-1]||place+'°'}</span>
+              <span style="flex:1;font-size:12px">${escHtml(p.name)}</span>
+              ${isCEDH?`<span style="font-size:11px;color:var(--muted)">${kills}💀</span>`:''}
+              <span style="font-size:11px;color:var(--magic)">+${pts}pts</span>
+            </div>`;
+          }).join('')}
+        </div>`;
+      });
+
+      html += `</div></div>`;
+    });
+  }
+
+  body.innerHTML = html;
 }
 
 function saveAdminPlacement(podIdx) {
