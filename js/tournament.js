@@ -83,17 +83,43 @@ function isOwner() {
   return currentUser && currentTournament && (currentTournament.owner_id === currentUser.id || isAdmin);
 }
 
-function enterGameApp(tournamentId) {
+async function enterGameApp(tournamentId) {
   const myPlayer = tournamentPlayers.find(p => p.user_id === currentUser?.id);
   if (!myPlayer && !isAdmin) { showToast('No estás inscrito en este torneo'); return; }
 
   if (currentTournament.type === 'commander') {
-    // Commander: sesión individual por pod
     openPlayerPodSession(tournamentId);
-  } else {
-    // Standard/Beyblade: app de vida compartida
-    startGameApp(currentTournament, tournamentPlayers, myPlayer || tournamentPlayers[0]);
+    return;
   }
+
+  // Para Beyblade y Standard: buscar el match actual del jugador
+  // para pasar solo los 2 jugadores del enfrentamiento
+  if (currentTournament.current_round > 0) {
+    const matchType = currentTournament.format === 'swiss' ? 'swiss' : 'elimination';
+    const { data: matches } = await _supabase
+      .from('matches').select('*')
+      .eq('tournament_id', tournamentId)
+      .eq('round', currentTournament.current_round)
+      .eq('match_type', matchType)
+      .eq('is_complete', false);
+
+    if (matches && myPlayer) {
+      const myMatch = matches.find(m =>
+        m.player1_id === myPlayer.id || m.player2_id === myPlayer.id
+      );
+      if (myMatch) {
+        // Solo pasar los 2 jugadores de este enfrentamiento
+        const p1 = tournamentPlayers.find(p => p.id === myMatch.player1_id);
+        const p2 = tournamentPlayers.find(p => p.id === myMatch.player2_id);
+        const matchPlayers = [p1, p2].filter(Boolean);
+        startGameApp(currentTournament, matchPlayers, myPlayer);
+        return;
+      }
+    }
+  }
+
+  // Fallback: todos los jugadores
+  startGameApp(currentTournament, tournamentPlayers, myPlayer || tournamentPlayers[0]);
 }
 
 // Admin panel controls
