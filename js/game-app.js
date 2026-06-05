@@ -637,16 +637,16 @@ function applyBeyFinish(who, finishType, pts) {
     AudioFX.roundEnd();
 
     // Verificar si ganó el match (Bo3 = 2 batallas)
-    if (gameState.beyWinsMe >= 2) {
+    if (gameState.beyWinsMe >= 2 || gameState.beyWinsOpp >= 2) {
+      const iWon = gameState.beyWinsMe >= 2;
       setTimeout(() => {
-        showToast('🏆 ¡Ganaste el match!');
-        AudioFX.victory();
-      }, 300);
-    } else if (gameState.beyWinsOpp >= 2) {
-      setTimeout(() => {
-        showToast('💀 El oponente ganó el match');
-        AudioFX.danger();
-      }, 300);
+        if (iWon) { showToast('🏆 ¡Ganaste el match!'); AudioFX.victory(); }
+        else { showToast('💀 El oponente ganó el match'); AudioFX.danger(); }
+        // Auto-enviar resultado si estamos en torneo
+        if (gameState.tournament?.id && !gameState.freeMode) {
+          autoSubmitBeyResult(iWon);
+        }
+      }, 600);
     } else {
       showToast(battleWinner === 'me' ? '🌀 ¡Ganaste la batalla!' : '💀 El oponente ganó la batalla');
     }
@@ -706,6 +706,44 @@ function doBeyLaunchSpin() {
       AudioFX.tap();
     }
   },80);
+}
+
+// ===== AUTO-SUBMIT BEYBLADE RESULT =====
+async function autoSubmitBeyResult(iWon) {
+  if (!gameState.tournament?.id || !gameState.myPlayer) return;
+
+  const myId    = gameState.myPlayer.id;
+  const oppId   = gameState.players?.find(p => p.id !== myId)?.id;
+  const winnerId = iWon ? myId : oppId;
+
+  // Buscar el match en la ronda actual
+  const matchType = gameState.tournament.format === 'swiss' ? 'swiss' : 'elimination';
+  const { data: matches } = await _supabase
+    .from('matches').select('*')
+    .eq('tournament_id', gameState.tournament.id)
+    .eq('round', gameState.tournament.current_round)
+    .eq('match_type', matchType);
+
+  if (!matches) return;
+  const myMatch = matches.find(m =>
+    m.player1_id === myId || m.player2_id === myId
+  );
+  if (!myMatch || myMatch.is_complete) return;
+
+  // Calcular score Bo3
+  const s1 = myMatch.player1_id === myId ? gameState.beyWinsMe : gameState.beyWinsOpp;
+  const s2 = myMatch.player1_id === myId ? gameState.beyWinsOpp : gameState.beyWinsMe;
+
+  // Guardar resultado (pendiente de confirmación del admin)
+  await _supabase.from('matches').update({
+    score_p1: s1,
+    score_p2: s2,
+    winner_id: winnerId,
+    is_complete: false, // admin debe confirmar
+    result_reported: true
+  }).eq('id', myMatch.id);
+
+  showToast('📤 Resultado enviado — esperando confirmación del admin');
 }
 
 // ===== WINNER POPUP =====
