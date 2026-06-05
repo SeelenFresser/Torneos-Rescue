@@ -688,7 +688,11 @@ function resetBeyScore() { resetBeyBattle(); }
 
 function doBeyLaunchSpin() {
   AudioFX.roundStart();
-  const players = gameState.players?.map(p=>p.name)||['J1','J2'];
+  // Usar solo los jugadores del match actual (no todos del torneo)
+  const matchPlayers = gameState.players?.length
+    ? gameState.players.map(p=>p.name)
+    : [gameState.myPlayer?.name||'J1', gameState.beyOppName||'J2'];
+  const players = matchPlayers;
   const nameEl=document.getElementById('spin-name'); const iconEl=document.getElementById('spin-icon');
   let count=0; const total=15+Math.floor(Math.random()*8);
   clearInterval(spinInterval);
