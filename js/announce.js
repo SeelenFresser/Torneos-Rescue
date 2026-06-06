@@ -83,13 +83,25 @@ async function sendAnnouncement() {
     const token = session?.access_token;
     if (!token) { showToast('Sesión expirada — recarga la página'); return; }
 
+    // Obtener emails desde el cliente (tiene acceso a profiles via RLS)
+    const { data: profileData } = await _supabase
+      .from('profiles').select('email').not('email', 'is', null);
+    const emails = (profileData || []).map(p => p.email).filter(Boolean);
+
+    if (!emails.length) {
+      statusEl.textContent = '⚠ No hay usuarios con email registrado';
+      btn.disabled = false; btn.textContent = '📧 Enviar correo';
+      return;
+    }
+
     const res = await fetch(ANNOUNCE_FN_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         subject, message,
         tournament_id: tournamentId,
-        admin_secret: 'rescuetcg_admin_2026'
+        admin_secret: 'rescuetcg_admin_2026',
+        emails
       })
     });
 
