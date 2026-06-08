@@ -279,6 +279,42 @@
   </div>
 </div>
 
+<!-- MODAL: Editar resultado (Admin) -->
+<div id="modal-edit-match" class="modal-overlay" style="display:none" onclick="closeModal('modal-edit-match')">
+  <div class="modal-box" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h3 id="edit-match-title">Editar resultado</h3>
+      <button class="btn btn-ghost btn-sm" onclick="closeModal('modal-edit-match')">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="edit-match-id">
+      <input type="hidden" id="edit-match-p1-id">
+      <input type="hidden" id="edit-match-p2-id">
+      <input type="hidden" id="edit-match-type">
+      <p style="font-size:12px;color:var(--muted);margin-bottom:12px">
+        ⚠ Los puntos se recalcularán automáticamente al guardar.
+      </p>
+      <div style="display:flex;align-items:center;gap:12px;justify-content:center;margin:16px 0">
+        <div style="text-align:center;flex:1">
+          <div id="edit-match-p1-name" style="font-size:13px;font-weight:700;margin-bottom:6px"></div>
+          <input class="input" id="edit-match-s1" type="number" min="0" max="2"
+            style="text-align:center;font-size:24px;font-weight:700;padding:8px">
+        </div>
+        <div style="font-size:18px;color:var(--muted);font-weight:700">–</div>
+        <div style="text-align:center;flex:1">
+          <div id="edit-match-p2-name" style="font-size:13px;font-weight:700;margin-bottom:6px"></div>
+          <input class="input" id="edit-match-s2" type="number" min="0" max="2"
+            style="text-align:center;font-size:24px;font-weight:700;padding:8px">
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-edit-match')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveEditMatch()">💾 Guardar cambio</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL: Enviar anuncio por correo -->
 <div id="modal-announce" class="modal-overlay" style="display:none" onclick="closeModal('modal-announce')">
   <div class="modal-box" onclick="event.stopPropagation()">
