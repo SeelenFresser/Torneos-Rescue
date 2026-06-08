@@ -22,6 +22,7 @@ async function openTournament(id) {
   await loadPlayers();
 
   if (t.type === 'commander') renderCommanderView();
+  else if (t.format === 'league') renderLeagueView();
   else if (t.format === 'swiss') renderSwissView();
   else renderEliminationView();
 
@@ -75,6 +76,7 @@ async function setTournamentStatus(status) {
 function refreshCurrentView() {
   if (!currentTournament) return;
   if (currentTournament.type === 'commander') renderCommanderView();
+  else if (currentTournament.format === 'league') renderLeagueView();
   else if (currentTournament.format === 'swiss') renderSwissView();
   else renderEliminationView();
 }
