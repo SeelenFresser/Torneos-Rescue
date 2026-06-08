@@ -427,6 +427,7 @@ async function closeCommander() {
   currentTournament.status='finished';
   AudioFX.victory();
   await loadPlayers();
+  await registerHallOfFame(currentTournament.id);
   renderCommanderView();
   setTimeout(()=>showWinnerPopup(tournamentPlayers),600);
 }
