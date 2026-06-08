@@ -4,18 +4,19 @@
 // =============================================
 
 // ── GENERAR RONDAS ROUND ROBIN ────────────────
-// Con n jugadores se necesitan n-1 rondas (si n es par)
-// o n rondas (si n es impar) para que todos jueguen contra todos
+// Siempre n-1 rondas. Si n es impar se agrega BYE ficticio
+// para completar pares — el jugador que toca BYE descansa esa semana.
+// Resultado: todos juegan el mismo número de partidas reales.
 
 function generateRoundRobin(players) {
   const n = players.length;
   const rounds = [];
   const ids = players.map(p => p.id);
 
-  // Si n es impar, agregar un BYE
+  // Si n es impar, agregar BYE ficticio para tener pares
   if (n % 2 !== 0) ids.push('BYE');
   const total = ids.length;
-  const numRounds = total - 1;
+  const numRounds = total - 1; // siempre n-1 (o n si impar → n+1-1 = n)
 
   for (let r = 0; r < numRounds; r++) {
     const round = [];
@@ -43,7 +44,8 @@ function renderLeagueView() {
   const players = tournamentPlayers;
   const owner = isOwner();
   const currentWeek = t.current_round || 0;
-  const totalWeeks = t.total_rounds || (players.length % 2 === 0 ? players.length - 1 : players.length);
+  const n = players.length;
+  const totalWeeks = t.total_rounds || (n % 2 === 0 ? n - 1 : n); // n impar necesita n semanas para todos vs todos con BYE
   const phase = t.league_phase || 'regular'; // 'regular' | 'playoff' | 'finished'
 
   document.getElementById('tournament-content').innerHTML = `
@@ -86,6 +88,7 @@ function renderLeagueView() {
         ${players.length >= 2 && t.status === 'upcoming' ? `
           <p style="font-size:12px;color:var(--muted);margin-top:6px">
             📊 ${players.length} jugadores → <strong style="color:var(--std)">${players.length%2===0?players.length-1:players.length} semanas</strong> de liga
+            ${players.length%2!==0?'<span style="color:var(--muted2);font-size:11px"> · 1 descanso por jugador</span>':''}
           </p>` : ''}
       </div>
     </div>
@@ -131,6 +134,7 @@ async function startLeague() {
   if (tournamentPlayers.length < 2) { showToast('Necesitas al menos 2 jugadores'); return; }
   // Calcular total de semanas
   const n = tournamentPlayers.length;
+  // Round robin: n par → n-1 semanas, n impar → n semanas (cada jugador descansa 1 vez)
   const totalWeeks = n % 2 === 0 ? n - 1 : n;
 
   await _supabase.from('tournaments').update({
