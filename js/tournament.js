@@ -111,6 +111,186 @@ function updateLeaguePlayerChips() {
   if (statVals[0]) statVals[0].textContent = n;
 }
 
+// ── MODAL EDITAR RESULTADO (Admin) ───────────────────────
+function openEditMatchModal(matchId, p1Id, p2Id, p1Name, p2Name, s1, s2, matchType) {
+  const modal = document.getElementById('modal-edit-match');
+  if (!modal) return;
+
+  document.getElementById('edit-match-title').textContent = `${p1Name} vs ${p2Name}`;
+  document.getElementById('edit-match-p1-name').textContent = p1Name;
+  document.getElementById('edit-match-p2-name').textContent = p2Name;
+  document.getElementById('edit-match-s1').value = s1 ?? '';
+  document.getElementById('edit-match-s2').value = s2 ?? '';
+  document.getElementById('edit-match-id').value = matchId;
+  document.getElementById('edit-match-p1-id').value = p1Id;
+  document.getElementById('edit-match-p2-id').value = p2Id;
+  document.getElementById('edit-match-type').value = matchType;
+
+  openModal('modal-edit-match');
+}
+
+async function saveEditMatch() {
+  const matchId = document.getElementById('edit-match-id').value;
+  const p1Id    = document.getElementById('edit-match-p1-id').value;
+  const p2Id    = document.getElementById('edit-match-p2-id').value;
+  const s1      = parseInt(document.getElementById('edit-match-s1').value);
+  const s2      = parseInt(document.getElementById('edit-match-s2').value);
+  const mType   = document.getElementById('edit-match-type').value;
+
+  if (isNaN(s1)||isNaN(s2)) { showToast('Ingresa ambos scores'); return; }
+  if (s1===s2)               { showToast('No puede haber empate'); return; }
+
+  const winnerId = s1>s2 ? p1Id : p2Id;
+  const loserId  = s1>s2 ? p2Id : p1Id;
+
+  // Obtener match anterior para revertir puntos
+  const { data: oldMatch } = await _supabase.from('matches').select('*').eq('id', matchId).single();
+  if (!oldMatch) { showToast('Match no encontrado'); return; }
+
+  const oldWinnerId = oldMatch.winner_id;
+  const oldLoserId  = oldMatch.player1_id===oldWinnerId ? oldMatch.player2_id : oldMatch.player1_id;
+  const oldS1 = oldMatch.score_p1||0;
+  const oldS2 = oldMatch.score_p2||0;
+
+  // Actualizar match
+  await _supabase.from('matches').update({
+    score_p1: s1, score_p2: s2,
+    winner_id: winnerId,
+    is_complete: true
+  }).eq('id', matchId);
+
+  // Revertir y re-aplicar puntos según formato
+  if (mType === 'swiss') {
+    // Revertir ganador anterior
+    const oldW = tournamentPlayers.find(p=>p.id===oldWinnerId);
+    const oldL = tournamentPlayers.find(p=>p.id===oldLoserId);
+    if (oldW) await _supabase.from('players').update({
+      points: Math.max(0,(oldW.points||0)-3),
+      wins:   Math.max(0,(oldW.wins||0)-1),
+      game_wins:   Math.max(0,(oldW.game_wins||0)-(oldMatch.player1_id===oldWinnerId?oldS1:oldS2)),
+      game_losses: Math.max(0,(oldW.game_losses||0)-(oldMatch.player1_id===oldWinnerId?oldS2:oldS1))
+    }).eq('id',oldW.id);
+    if (oldL) await _supabase.from('players').update({
+      losses: Math.max(0,(oldL.losses||0)-1),
+      game_wins:   Math.max(0,(oldL.game_wins||0)-(oldMatch.player1_id===oldLoserId?oldS1:oldS2)),
+      game_losses: Math.max(0,(oldL.game_losses||0)-(oldMatch.player1_id===oldLoserId?oldS2:oldS1))
+    }).eq('id',oldL.id);
+
+    // Aplicar nuevo resultado
+    const newW = tournamentPlayers.find(p=>p.id===winnerId);
+    const newL = tournamentPlayers.find(p=>p.id===loserId);
+    if (newW) await _supabase.from('players').update({
+      points: (newW.points||0)+3,
+      wins:   (newW.wins||0)+1,
+      game_wins:   (newW.game_wins||0)+(winnerId===p1Id?s1:s2),
+      game_losses: (newW.game_losses||0)+(winnerId===p1Id?s2:s1)
+    }).eq('id',newW.id);
+    if (newL) await _supabase.from('players').update({
+      losses: (newL.losses||0)+1,
+      game_wins:   (newL.game_wins||0)+(loserId===p1Id?s1:s2),
+      game_losses: (newL.game_losses||0)+(loserId===p1Id?s2:s1)
+    }).eq('id',newL.id);
+
+  } else if (mType === 'league') {
+    // Liga: revertir 1pt asistencia + 3pt victoria, re-aplicar
+    const oldW = tournamentPlayers.find(p=>p.id===oldWinnerId);
+    const oldL = tournamentPlayers.find(p=>p.id===oldLoserId);
+    if (oldW) await _supabase.from('players').update({
+      points: Math.max(0,(oldW.points||0)-3),
+      wins:   Math.max(0,(oldW.wins||0)-1)
+    }).eq('id',oldW.id);
+    if (oldL) await _supabase.from('players').update({
+      losses: Math.max(0,(oldL.losses||0)-1)
+    }).eq('id',oldL.id);
+
+    const newW = tournamentPlayers.find(p=>p.id===winnerId);
+    const newL = tournamentPlayers.find(p=>p.id===loserId);
+    if (newW) await _supabase.from('players').update({
+      points: (newW.points||0)+3,
+      wins:   (newW.wins||0)+1
+    }).eq('id',newW.id);
+    if (newL) await _supabase.from('players').update({
+      losses: (newL.losses||0)+1
+    }).eq('id',newL.id);
+  }
+  // Playoff: solo actualiza el resultado, no puntos
+
+  closeModal('modal-edit-match');
+  AudioFX.tap();
+  showToast('Resultado actualizado ✓');
+  await loadPlayers();
+  refreshCurrentView();
+}
+
+// ── HALL OF FAME ─────────────────────────────────────────
+async function registerHallOfFame(tournamentId) {
+  const { data: t } = await _supabase
+    .from('tournaments').select('*').eq('id', tournamentId).single();
+  if (!t) return;
+
+  const { data: players } = await _supabase
+    .from('players').select('*').eq('tournament_id', tournamentId);
+  if (!players || !players.length) return;
+
+  const sorted = [...players].sort((a,b)=>(b.points-a.points)||(b.wins-a.wins));
+  const winner = sorted[0];
+
+  const { error } = await _supabase.from('hall_of_fame').insert({
+    tournament_id:    tournamentId,
+    tournament_name:  t.name,
+    tournament_type:  t.type,
+    tournament_format: t.format,
+    winner_name:      winner.name,
+    winner_id:        winner.user_id || null,
+    winner_points:    winner.points || 0,
+    winner_wins:      winner.wins   || 0,
+    tournament_date:  t.tournament_date || new Date().toISOString(),
+    player_count:     players.length
+  });
+  if (error) console.error('Hall of Fame error:', error.message);
+}
+
+// ── EDITAR POD COMMANDER (desconfirmar para re-editar) ────
+async function openEditPodModal(podIdx) {
+  const sessions = window._cmdrSessions;
+  if (!sessions||!sessions[podIdx]) return;
+  if (!confirm('¿Editar este pod? Se revertirán los puntos asignados.')) return;
+
+  const s = sessions[podIdx];
+  const playerIds = JSON.parse(s.player_ids||'[]');
+  const resultData = s.result_data ? JSON.parse(s.result_data) : {};
+
+  // Revertir puntos
+  const ptsSystem = currentTournament.points_system||'standard';
+  const isCEDH = ptsSystem==='cedh';
+  const podSize = playerIds.length;
+
+  for (const pid of playerIds) {
+    const r = resultData[pid]||{};
+    const pts = isCEDH ? (r.kills||0)+(r.place===1?1:0) : getPts(ptsSystem,r.place||99,podSize);
+    const dbPlayer = tournamentPlayers.find(p=>p.id===pid);
+    if (dbPlayer && pts>0) {
+      await _supabase.from('players').update({
+        points: Math.max(0,(dbPlayer.points||0)-pts),
+        wins:   Math.max(0,(dbPlayer.wins||0)-(r.place===1?1:0))
+      }).eq('id',pid);
+    }
+  }
+
+  // Desconfirmar pod
+  await _supabase.from('pod_sessions').update({
+    is_confirmed: false,
+    result_data: null
+  }).eq('id',s.id);
+
+  AudioFX.tap();
+  showToast('Pod desbloqueado para edición');
+  await loadPlayers();
+  await loadAndShowCurrentPods();
+  const sb=document.getElementById('cmdr-standings-body');
+  if(sb) sb.innerHTML=renderCommanderStandings(tournamentPlayers);
+}
+
 function refreshCurrentView() {
   if (!currentTournament) return;
   if (currentTournament.type === 'commander') renderCommanderView();
