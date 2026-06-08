@@ -117,9 +117,6 @@ async function deleteTournament(id, event) {
 }
 
 async function loadDashboard() {
-  // Cargar Hall of Fame en paralelo
-  loadHallOfFame();
-
   // Render quick tools (done here so onclick fns are defined)
   const qt = document.getElementById('quick-tools');
   if (qt) qt.innerHTML = `
