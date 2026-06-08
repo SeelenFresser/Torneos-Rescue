@@ -53,10 +53,19 @@ async function addPlayer(nameInputId, beyInputId) {
     wins:0, losses:0, draws:0, points:0, game_wins:0, game_losses:0
   });
   if (error) { showToast('Error: ' + error.message); return; }
-  nameEl.value = ''; if (beyEl) beyEl.value = '';
+  nameEl.value = '';
+  if (beyEl) beyEl.value = '';
   await loadPlayers();
-  refreshCurrentView();
+
+  // Para la liga: actualizar solo los chips sin destruir el input
+  if (currentTournament.format === 'league') {
+    updateLeaguePlayerChips();
+  } else {
+    refreshCurrentView();
+  }
   showToast(`${name} agregado ✓`);
+  // Devolver foco al input para agregar otro jugador rápidamente
+  setTimeout(() => nameEl.focus(), 50);
 }
 
 async function removePlayer(playerId) {
@@ -71,6 +80,35 @@ async function setTournamentStatus(status) {
   currentTournament.status = status;
   refreshCurrentView();
   showToast(status === 'active' ? '¡Torneo iniciado!' : 'Torneo finalizado');
+}
+
+function updateLeaguePlayerChips() {
+  const players = tournamentPlayers;
+  const owner = isOwner();
+  const n = players.length;
+  const totalWeeks = n % 2 === 0 ? n - 1 : n;
+
+  // Actualizar chips
+  const chipsEl = document.querySelector('#tournament-content .chips');
+  if (chipsEl) {
+    chipsEl.innerHTML = players.map(p => `
+      <div class="chip">
+        ${p.user_id ? '👤' : '🤖'} ${escHtml(p.name)}
+        ${owner && currentTournament.status === 'upcoming'
+          ? `<button class="chip-remove" onclick="removePlayer('${p.id}')">×</button>` : ''}
+      </div>`).join('') +
+      (players.length === 0 ? '<span style="color:var(--muted);font-size:13px">Sin jugadores</span>' : '');
+  }
+
+  // Actualizar el texto de semanas
+  const infoEl = document.querySelector('#tournament-content .chips + p');
+  if (infoEl && n >= 2) {
+    infoEl.innerHTML = `📊 ${n} jugadores → <strong style="color:var(--std)">${totalWeeks} semanas</strong> de liga`;
+  }
+
+  // Actualizar stat box de jugadores
+  const statVals = document.querySelectorAll('#tournament-content .stat-val');
+  if (statVals[0]) statVals[0].textContent = n;
 }
 
 function refreshCurrentView() {
