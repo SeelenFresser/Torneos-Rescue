@@ -166,6 +166,9 @@ async function loadDashboard() {
   const labels = { commander:'Commander · Pods', standard:'Standard · Bo3', beyblade:'Beyblade · Bo3', league:'Liga Semanal · MTG' };
   const fmtLbl = { swiss:'Swiss', elimination:'Eliminación directa', pods:'', league:'' };
 
+  // Cargar Hall of Fame
+  loadHallOfFame();
+
   el.innerHTML = data.map(t => {
     const dateStr = formatTournamentDate(t.tournament_date);
     const statusClass = { upcoming:'status-upcoming', active:'status-active', finished:'status-finished' }[t.status] || '';
@@ -247,4 +250,78 @@ function formatTournamentDate(iso) {
   const hasTime = iso.includes('T') && !iso.endsWith('T00:00:00') && !iso.endsWith('T00:00:00+00:00');
   const timeStr = hasTime ? String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0') : '';
   return dateStr + (timeStr ? ' · ' + timeStr : '');
+}
+
+// ── HALL OF FAME ──────────────────────────────────────────
+async function loadHallOfFame() {
+  const el = document.getElementById('hall-of-fame');
+  if (!el) return;
+
+  const { data, error } = await _supabase
+    .from('hall_of_fame')
+    .select('*')
+    .order('tournament_date', { ascending: false })
+    .limit(20);
+
+  if (error || !data || !data.length) {
+    el.innerHTML = '<div class="empty-state" style="padding:12px;font-size:12px">Sin ganadores registrados aún</div>';
+    return;
+  }
+
+  const icons = { commander:'🧙', standard:'🃏', beyblade:'🌀', league:'🏅' };
+  el.innerHTML = `<table class="t-table" style="font-size:12px">
+    <thead><tr><th>Torneo</th><th>Tipo</th><th>Campeón</th><th>Fecha</th></tr></thead>
+    <tbody>
+      ${data.map(r => `<tr>
+        <td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(r.tournament_name)}</td>
+        <td>${icons[r.tournament_type]||'🏆'}</td>
+        <td style="color:var(--gold);font-weight:700">👑 ${escHtml(r.winner_name)}</td>
+        <td style="color:var(--muted)">${r.tournament_date ? new Date(r.tournament_date).toLocaleDateString('es-MX',{day:'2-digit',month:'short',year:'numeric'}) : '—'}</td>
+      </tr>`).join('')}
+    </tbody>
+  </table>`;
+}
+
+async function registerHallOfFame(tournamentId) {
+  const { data: t } = await _supabase
+    .from('tournaments').select('*').eq('id', tournamentId).single();
+  if (!t) return;
+
+  const { data: players } = await _supabase
+    .from('players').select('*').eq('tournament_id', tournamentId);
+  if (!players || !players.length) return;
+
+  const sorted = [...players].sort((a,b)=>(b.points-a.points)||(b.wins-a.wins));
+  const winner = sorted[0];
+
+  await _supabase.from('hall_of_fame').insert({
+    tournament_id:     tournamentId,
+    tournament_name:   t.name,
+    tournament_type:   t.type,
+    tournament_format: t.format,
+    winner_name:       winner.name,
+    winner_id:         winner.user_id || null,
+    winner_points:     winner.points || 0,
+    winner_wins:       winner.wins   || 0,
+    tournament_date:   t.tournament_date || new Date().toISOString(),
+    player_count:      players.length
+  });
+}
+
+async function finalizarTorneoDesdeInicio(tournamentId, event) {
+  event.stopPropagation();
+  if (!confirm('¿Finalizar este torneo y registrar al ganador en el Hall of Fame?')) return;
+
+  const { data: players } = await _supabase
+    .from('players').select('*').eq('tournament_id', tournamentId);
+
+  await _supabase.from('tournaments').update({ status: 'finished' }).eq('id', tournamentId);
+
+  if (players && players.length) {
+    await registerHallOfFame(tournamentId);
+  }
+
+  AudioFX.victory();
+  showToast('🏆 Torneo finalizado y registrado en el Hall of Fame');
+  loadDashboard();
 }
