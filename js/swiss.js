@@ -176,7 +176,11 @@ function renderSwissMatch(m, round) {
       <div class="match-player ${w2}">${escHtml(p2name)}</div>
       <div class="match-actions">
         ${m.is_complete
-          ? `<span class="pill pill-w">${m.score_p1}–${m.score_p2}</span>`
+          ? `<div style="display:flex;align-items:center;gap:6px">
+               <span class="pill pill-w">${m.score_p1}–${m.score_p2}</span>
+               ${owner ? `<button class="btn btn-xs btn-ghost" style="padding:2px 6px;font-size:11px"
+                 onclick="openEditMatchModal('${m.id}','${m.player1_id}','${m.player2_id}','${escHtml(p1name)}','${escHtml(p2name)}',${m.score_p1},${m.score_p2},'swiss')">✏️</button>` : ''}
+             </div>`
           : reported && owner
           ? `<div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end">
                <span style="font-size:10px;color:var(--cream)">📤 Reportado: ${m.score_p1}–${m.score_p2}</span>
