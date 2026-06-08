@@ -519,6 +519,8 @@ function renderPlayoffMatch(m, owner, active, isSemi) {
         ? `<div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px">
              <span class="pill pill-w">${m.score_p1}–${m.score_p2}</span>
              <span style="font-size:10px;color:var(--green)">${escHtml(tournamentPlayers.find(p=>p.id===m.winner_id)?.name||'?')} ✓</span>
+             ${owner ? `<button class="btn btn-xs btn-ghost" style="padding:2px 6px;font-size:11px"
+               onclick="openEditMatchModal('${m.id}','${m.player1_id}','${m.player2_id}','${escHtml(p1?.name||m.player1_name||'?')}','${escHtml(p2?.name||m.player2_name||'?')}',${m.score_p1},${m.score_p2},'playoff')">✏️</button>` : ''}
            </div>`
         : owner && active
         ? `<div class="score-wrap">
