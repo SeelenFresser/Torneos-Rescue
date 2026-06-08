@@ -8,8 +8,8 @@ let editingTournamentId = null;
 function selectType(type) {
   selectedType = type;
   document.querySelectorAll('.type-card').forEach(c => c.classList.toggle('active', c.dataset.type === type));
-  document.getElementById('nt-format-row').style.display    = type !== 'commander' ? '' : 'none';
-  document.getElementById('nt-commander-row').style.display = type === 'commander'  ? '' : 'none';
+  document.getElementById('nt-format-row').style.display    = (type !== 'commander' && type !== 'league') ? '' : 'none';
+  document.getElementById('nt-commander-row').style.display = type === 'commander' ? '' : 'none';
 }
 
 function openNewTournamentModal() {
@@ -79,6 +79,8 @@ async function createTournament() {
     // CREAR
     const format = selectedType === 'commander'
       ? 'pods'
+      : selectedType === 'league'
+      ? 'league'
       : document.querySelector('input[name="nt-format"]:checked').value;
 
     const total_rounds   = selectedType === 'commander' ? parseInt(document.getElementById('nt-rounds').value) : null;
@@ -160,9 +162,9 @@ async function loadDashboard() {
     return;
   }
 
-  const icons  = { commander:'🧙', standard:'🃏', beyblade:'🌀' };
-  const labels = { commander:'Commander · Pods', standard:'Standard · Bo3', beyblade:'Beyblade · Bo3' };
-  const fmtLbl = { swiss:'Swiss', elimination:'Eliminación directa', pods:'' };
+  const icons  = { commander:'🧙', standard:'🃏', beyblade:'🌀', league:'🏅' };
+  const labels = { commander:'Commander · Pods', standard:'Standard · Bo3', beyblade:'Beyblade · Bo3', league:'Liga Semanal · MTG' };
+  const fmtLbl = { swiss:'Swiss', elimination:'Eliminación directa', pods:'', league:'' };
 
   el.innerHTML = data.map(t => {
     const dateStr = formatTournamentDate(t.tournament_date);
