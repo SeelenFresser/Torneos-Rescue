@@ -237,19 +237,26 @@ function renderAdminPods(sessions, allSessions=[]) {
               El último en pie = 1°, el penúltimo = 2°, etc.
             </p>
             ${players.map((p,si)=>`
-              <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+              <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;flex-wrap:wrap">
                 <div class="seat-num">${si+1}</div>
-                <div style="flex:1;font-size:13px">${escHtml(p.name)}</div>
-                <select class="place-sel" id="admin-pod${pi}-seat${si}">
+                <div style="flex:1;font-size:13px;min-width:80px">${escHtml(p.name)}</div>
+                <select class="place-sel" id="admin-pod${pi}-seat${si}" style="flex:1;min-width:120px">
                   <option value="">lugar</option>
                   <option value="1" ${resultData[p.id]?.place===1?'selected':''}>👑 1° Ganador</option>
-                  <option value="2" ${resultData[p.id]?.place===2?'selected':''}>🥈 2° Último eliminado</option>
+                  <option value="2" ${resultData[p.id]?.place===2?'selected':''}>🥈 2° Último elim.</option>
                   <option value="3" ${resultData[p.id]?.place===3?'selected':''}>🥉 3° Eliminado</option>
-                  ${players.length>=4?`<option value="4" ${resultData[p.id]?.place===4?'selected':''}>4️⃣ 4° Primer eliminado</option>`:''}
+                  ${players.length>=4?`<option value="4" ${resultData[p.id]?.place===4?'selected':''}>4️⃣ 4° Primer elim.</option>`:''}
                 </select>
+                <div style="display:flex;align-items:center;gap:4px">
+                  <span style="font-size:11px;color:var(--muted)">💀</span>
+                  <input class="score-in" id="admin-pod${pi}-kills${si}"
+                    type="number" min="0" max="${players.length-1}"
+                    placeholder="0" style="width:46px"
+                    value="${resultData[p.id]?.kills??''}">
+                </div>
               </div>`).join('')}
             <p style="font-size:10px;color:var(--muted);margin-top:4px">
-              Puntos: 1°=1pt(victoria) · kills se registran en la app del jugador
+              1°=1pt(victoria) · 💀=1pt por kill
             </p>
           ` : `
             ${players.map((p,si)=>`
@@ -345,18 +352,18 @@ async function confirmPod(podIdx) {
   let resultData = {};
 
   if (isCEDH) {
-    // En cEDH el lugar lo determina el orden de eliminación
     const places = players.map((_,si)=>parseInt(document.getElementById(`admin-pod${podIdx}-seat${si}`)?.value)||0);
     if (places.some(v=>v===0)) { showToast(`Pod ${s.pod_number}: asigna todos los lugares`); return; }
     if (new Set(places).size!==podSize) { showToast(`Pod ${s.pod_number}: lugares duplicados`); return; }
-    players.forEach((p,si)=>{ resultData[p.id]={place:places[si], kills:0}; });
-    // Integrar kills reportados por jugadores (si los hay)
-    if (s.result_data) {
-      const prev = JSON.parse(s.result_data);
-      players.forEach(p=>{
-        if (prev[p.id]?.kills) resultData[p.id].kills = prev[p.id].kills;
-      });
-    }
+    // Leer kills del input del admin (o del reporte del jugador si no hay)
+    players.forEach((p,si)=>{
+      const adminKills = parseInt(document.getElementById(`admin-pod${podIdx}-kills${si}`)?.value);
+      const playerKills = s.result_data ? (JSON.parse(s.result_data)[p.id]?.kills||0) : 0;
+      resultData[p.id] = {
+        place: places[si],
+        kills: !isNaN(adminKills) ? adminKills : playerKills
+      };
+    });
   } else {
     const places = players.map((_,si)=>parseInt(document.getElementById(`admin-pod${podIdx}-seat${si}`)?.value)||0);
     if (places.some(v=>v===0)) { showToast(`Pod ${s.pod_number}: asigna todos los lugares`); return; }
