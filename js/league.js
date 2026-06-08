@@ -668,6 +668,7 @@ async function finalizarLiga() {
   await _supabase.from('tournaments').update({status:'finished',league_phase:'finished'}).eq('id',currentTournament.id);
   currentTournament.status='finished';
   currentTournament.league_phase='finished';
+  await registerHallOfFame(currentTournament.id);
   renderLeagueView();
 }
 
