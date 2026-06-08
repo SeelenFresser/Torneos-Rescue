@@ -107,7 +107,9 @@ async function startSwiss() {
 
 async function finalizarSwiss() {
   await setTournamentStatus('finished');
+  await registerHallOfFame(currentTournament.id);
   renderSwissView();
+  setTimeout(()=>showWinnerPopup(tournamentPlayers), 600);
 }
 
 async function loadSwissRounds() {
