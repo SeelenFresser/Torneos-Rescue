@@ -154,6 +154,9 @@ async function loadDashboard() {
 
   window._tournamentsCache = data;
 
+  // Cargar Hall of Fame siempre, independientemente de si hay torneos
+  loadHallOfFame();
+
   if (!data.length) {
     el.innerHTML = `<div class="empty-state" style="grid-column:1/-1">
       <div class="empty-icon">🏆</div>
@@ -165,9 +168,6 @@ async function loadDashboard() {
   const icons  = { commander:'🧙', standard:'🃏', beyblade:'🌀', league:'🏅' };
   const labels = { commander:'Commander · Pods', standard:'Standard · Bo3', beyblade:'Beyblade · Bo3', league:'Liga Semanal · MTG' };
   const fmtLbl = { swiss:'Swiss', elimination:'Eliminación directa', pods:'', league:'' };
-
-  // Cargar Hall of Fame
-  loadHallOfFame();
 
   el.innerHTML = data.map(t => {
     const dateStr = formatTournamentDate(t.tournament_date);
