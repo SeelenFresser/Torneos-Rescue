@@ -172,8 +172,11 @@ async function loadDashboard() {
     const statusLabel = { upcoming:'Próximo', active:'En curso', finished:'Finalizado' }[t.status] || t.status;
 
     const adminBtns = isAdmin ? `
-      <div style="display:flex;gap:6px;margin-top:10px" onclick="event.stopPropagation()">
+      <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap" onclick="event.stopPropagation()">
         <button class="btn btn-sm btn-ghost" onclick="openEditTournamentModal('${t.id}', event)">✏️ Editar</button>
+        ${t.status === 'active' ? `
+        <button class="btn btn-sm" style="border-color:var(--gold);color:var(--gold)"
+          onclick="finalizarTorneoDesdeInicio('${t.id}', event)">🏆 Finalizar</button>` : ''}
         <button class="btn btn-sm btn-danger" onclick="deleteTournament('${t.id}', event)">🗑 Eliminar</button>
       </div>` : '';
 
