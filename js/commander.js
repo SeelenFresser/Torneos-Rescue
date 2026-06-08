@@ -214,6 +214,8 @@ function renderAdminPods(sessions, allSessions=[]) {
 
         ${confirmed ? `
           <!-- RESULTADO CONFIRMADO -->
+          ${owner ? `<button class="btn btn-xs btn-ghost" style="margin-bottom:6px;font-size:11px"
+            onclick="openEditPodModal(${pi})">✏️ Editar resultado</button>` : ''}
           ${sortedPlayers.map((p,si)=>{
             const r = resultData[p.id]||{};
             const place = r.place||si+1;
