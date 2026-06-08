@@ -268,6 +268,8 @@ select.input { cursor: pointer; }
 .type-card[data-type="commander"].active { border-color: var(--magic); background: rgba(155,114,221,0.1); }
 .type-card[data-type="standard"].active  { border-color: var(--std);   background: rgba(61,212,160,0.1); }
 .type-card[data-type="beyblade"].active  { border-color: var(--bey);   background: rgba(255,140,58,0.1); }
+.type-card[data-type="league"].active    { border-color: var(--gold);  background: rgba(245,208,96,0.1); }
+.badge-league { background: rgba(245,208,96,0.15); color: var(--gold); }
 .type-icon  { font-size: 24px; }
 .type-label { font-size: 13px; font-weight: 700; margin-top: 4px; }
 .type-sub   { font-size: 11px; color: var(--muted); }
