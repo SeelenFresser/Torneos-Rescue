@@ -439,54 +439,87 @@ function renderPlayoffSection(t, players) {
     </div>`;
 }
 
+// Guarda los matches de playoff en memoria para evitar múltiples fetches
+let _playoffMatches = [];
+
 async function loadAndRenderPlayoff() {
-  const { data: matches } = await _supabase
+  const { data: matches, error } = await _supabase
     .from('matches').select('*')
     .eq('tournament_id', currentTournament.id)
     .eq('match_type', 'league_playoff')
-    .order('round').order('match_number');
+    .order('round', { ascending: true })
+    .order('match_number', { ascending: true });
 
   const body = document.getElementById('playoff-body');
-  if (!body || !matches) return;
+  if (!body) return;
+  if (error || !matches) { body.innerHTML = '<div class="empty-state">Error cargando playoff</div>'; return; }
 
+  _playoffMatches = matches;
   const owner = isOwner();
   const active = currentTournament.status === 'active';
 
   // Agrupar por ronda
   const rounds = {};
   matches.forEach(m => { if(!rounds[m.round]) rounds[m.round]=[]; rounds[m.round].push(m); });
+  const roundKeys = Object.keys(rounds).map(Number).sort((a,b)=>a-b);
 
-  const roundLabels = {
-    [Object.keys(rounds)[0]]: 'Semifinales',
-    [Object.keys(rounds)[1]]: 'Final & 3er Lugar'
-  };
+  // Determinar si semis están completas y no hay finales aún
+  const semiRound = roundKeys[0];
+  const finalRound = roundKeys[1];
+  const semisComplete = semiRound && rounds[semiRound].every(m=>m.is_complete);
+  const finalsExist = !!finalRound;
 
-  body.innerHTML = Object.keys(rounds).sort((a,b)=>a-b).map(rn => `
-    <div style="margin-bottom:16px">
-      <div style="font-size:12px;font-weight:700;color:var(--std);margin-bottom:8px">
-        ${roundLabels[rn] || 'Ronda ' + rn}
+  // Verificar si la final está completa para anunciar ganador
+  if (finalsExist && rounds[finalRound].every(m=>m.is_complete)) {
+    const finalMatch = rounds[finalRound].find(m=>m.match_number===1);
+    if (finalMatch && finalMatch.winner_id && !currentTournament._winnerAnnounced) {
+      currentTournament._winnerAnnounced = true;
+      setTimeout(() => announceLeagueWinner(matches, rounds, finalRound), 500);
+    }
+  }
+
+  body.innerHTML = roundKeys.map(rn => {
+    const label = rn === semiRound ? '⚔️ Semifinales' : '🏆 Final & 3er Lugar';
+    const roundMatches = rounds[rn];
+    const allDone = roundMatches.every(m=>m.is_complete);
+
+    return `<div style="margin-bottom:16px">
+      <div style="font-size:12px;font-weight:700;color:var(--std);margin-bottom:8px;
+        display:flex;align-items:center;justify-content:space-between">
+        <span>${label}</span>
+        <span style="color:${allDone?'var(--green)':'var(--muted)'}">
+          ${allDone?'✓ Completas':'En curso'}
+        </span>
       </div>
-      ${rounds[rn].map(m => renderPlayoffMatch(m, owner, active)).join('')}
-      ${owner && active && rounds[rn].every(m=>m.is_complete) && !rounds[Object.keys(rounds)[1]] ? `
-        <button class="btn btn-primary btn-sm" style="margin-top:8px" onclick="generateLeagueFinals()">
-          ▶ Generar Final & 3er lugar
+      ${roundMatches.sort((a,b)=>a.match_number-b.match_number).map(m => renderPlayoffMatch(m, owner, active, rn===semiRound)).join('')}
+      ${owner && active && semisComplete && !finalsExist ? `
+        <button class="btn btn-primary btn-sm" style="margin-top:10px;width:100%" onclick="generateLeagueFinals()">
+          🏆 Generar Final & 3er lugar
         </button>` : ''}
-    </div>`).join('');
+    </div>`;
+  }).join('');
 }
 
-function renderPlayoffMatch(m, owner, active) {
+function renderPlayoffMatch(m, owner, active, isSemi) {
   const p1 = tournamentPlayers.find(p=>p.id===m.player1_id);
   const p2 = tournamentPlayers.find(p=>p.id===m.player2_id);
-  const w1 = m.winner_id===m.player1_id?'winner':'';
-  const w2 = m.winner_id===m.player2_id?'winner':'';
+  const w1cls = m.is_complete ? (m.winner_id===m.player1_id?'winner':'loser') : '';
+  const w2cls = m.is_complete ? (m.winner_id===m.player2_id?'winner':'loser') : '';
+  const matchLabel = isSemi
+    ? (m.match_number===1 ? '1° vs 4°' : '2° vs 3°')
+    : (m.match_number===1 ? '🥇 Final' : '🥉 3er lugar');
 
-  return `<div class="match-card" style="margin-bottom:8px">
-    <div class="match-player ${w1}">${escHtml(p1?.name||'?')}</div>
+  return `<div class="match-card" style="margin-bottom:8px;flex-wrap:wrap;gap:6px">
+    <div style="width:100%;font-size:10px;color:var(--muted);margin-bottom:2px">${matchLabel}</div>
+    <div class="match-player ${w1cls}" style="min-width:80px">${escHtml(p1?.name||m.player1_name||'?')}</div>
     <div class="match-vs">vs</div>
-    <div class="match-player ${w2}">${escHtml(p2?.name||'?')}</div>
-    <div class="match-actions">
+    <div class="match-player ${w2cls}" style="min-width:80px">${escHtml(p2?.name||m.player2_name||'?')}</div>
+    <div class="match-actions" style="margin-left:auto">
       ${m.is_complete
-        ? `<span class="pill pill-w">${m.score_p1}–${m.score_p2}</span>`
+        ? `<div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px">
+             <span class="pill pill-w">${m.score_p1}–${m.score_p2}</span>
+             <span style="font-size:10px;color:var(--green)">${escHtml(tournamentPlayers.find(p=>p.id===m.winner_id)?.name||'?')} ✓</span>
+           </div>`
         : owner && active
         ? `<div class="score-wrap">
              <input class="score-in" id="pm${m.id}-s1" type="number" min="0" max="2" placeholder="0" style="width:36px">
@@ -502,61 +535,140 @@ function renderPlayoffMatch(m, owner, active) {
 async function confirmPlayoffMatch(matchId, p1Id, p2Id) {
   const s1 = parseInt(document.getElementById(`pm${matchId}-s1`)?.value)||0;
   const s2 = parseInt(document.getElementById(`pm${matchId}-s2`)?.value)||0;
-  if (s1+s2<2||s1>2||s2>2||(s1!==2&&s2!==2)) { showToast('Bo3: resultado inválido'); return; }
+  if (s1+s2<2||s1>2||s2>2||(s1!==2&&s2!==2)) { showToast('Bo3: resultado inválido (ej: 2-0 o 2-1)'); return; }
 
-  const winnerId = s1>s2?p1Id:p2Id;
-  await _supabase.from('matches').update({
+  const winnerId = s1>s2 ? p1Id : p2Id;
+  const { error } = await _supabase.from('matches').update({
     score_p1:s1, score_p2:s2, winner_id:winnerId, is_complete:true
   }).eq('id', matchId);
 
-  AudioFX.tap();
+  if (error) { showToast('Error: '+error.message); return; }
+
+  AudioFX.roundEnd();
   showToast('Resultado confirmado ✓');
+  await loadPlayers();
   await loadAndRenderPlayoff();
 }
 
 async function generateLeagueFinals() {
-  // Obtener resultados de semis
-  const { data: semis } = await _supabase
+  // Obtener semis completadas de la ronda más baja del playoff
+  const { data: allPlayoff } = await _supabase
     .from('matches').select('*')
     .eq('tournament_id', currentTournament.id)
     .eq('match_type', 'league_playoff')
-    .eq('is_complete', true)
-    .order('match_number');
+    .order('round', {ascending:true})
+    .order('match_number', {ascending:true});
 
-  if (!semis || semis.length < 2) { showToast('Completa las semis primero'); return; }
+  if (!allPlayoff || allPlayoff.length < 2) { showToast('No hay semis'); return; }
 
-  const winners = semis.map(m => m.winner_id);
-  const losers  = semis.map(m => m.player1_id===m.winner_id ? m.player2_id : m.player1_id);
+  const semiRound = allPlayoff[0].round;
+  const semis = allPlayoff.filter(m=>m.round===semiRound).sort((a,b)=>a.match_number-b.match_number);
 
-  const newRound = (currentTournament.current_round||0)+1;
+  if (semis.length < 2 || !semis.every(m=>m.is_complete)) {
+    showToast('Completa ambas semis primero'); return;
+  }
 
-  // Final: ganador semi1 vs ganador semi2
-  // 3er lugar: perdedor semi1 vs perdedor semi2
-  await _supabase.from('matches').insert([
+  // Verificar que no existan ya las finales
+  const finalsExist = allPlayoff.some(m=>m.round>semiRound);
+  if (finalsExist) { showToast('Las finales ya fueron generadas'); return; }
+
+  const winner1 = semis[0].winner_id;
+  const winner2 = semis[1].winner_id;
+  const loser1  = semis[0].player1_id===winner1 ? semis[0].player2_id : semis[0].player1_id;
+  const loser2  = semis[1].player1_id===winner2 ? semis[1].player2_id : semis[1].player1_id;
+
+  const getName = id => tournamentPlayers.find(p=>p.id===id)?.name ||
+    allPlayoff.find(m=>m.player1_id===id)?.player1_name ||
+    allPlayoff.find(m=>m.player2_id===id)?.player2_name || '?';
+
+  const newRound = semiRound + 1;
+
+  const { error } = await _supabase.from('matches').insert([
     {
       tournament_id: currentTournament.id,
       round: newRound, match_number: 1,
       match_type: 'league_playoff',
-      player1_id: winners[0], player1_name: tournamentPlayers.find(p=>p.id===winners[0])?.name,
-      player2_id: winners[1], player2_name: tournamentPlayers.find(p=>p.id===winners[1])?.name,
+      player1_id: winner1, player1_name: getName(winner1),
+      player2_id: winner2, player2_name: getName(winner2),
       is_complete: false
     },
     {
       tournament_id: currentTournament.id,
       round: newRound, match_number: 2,
       match_type: 'league_playoff',
-      player1_id: losers[0], player1_name: tournamentPlayers.find(p=>p.id===losers[0])?.name,
-      player2_id: losers[1], player2_name: tournamentPlayers.find(p=>p.id===losers[1])?.name,
+      player1_id: loser1, player1_name: getName(loser1),
+      player2_id: loser2, player2_name: getName(loser2),
       is_complete: false
     }
   ]);
+
+  if (error) { showToast('Error: '+error.message); return; }
 
   await _supabase.from('tournaments').update({ current_round: newRound }).eq('id', currentTournament.id);
   currentTournament.current_round = newRound;
 
   AudioFX.roundStart();
-  showToast('🏆 Final y 3er lugar generados');
+  showToast('🏆 Final y partido por 3er lugar generados');
   await loadAndRenderPlayoff();
+}
+
+function announceLeagueWinner(matches, rounds, finalRound) {
+  const finalMatch = rounds[finalRound].find(m=>m.match_number===1);
+  const thirdMatch = rounds[finalRound].find(m=>m.match_number===2);
+  if (!finalMatch) return;
+
+  const champion = tournamentPlayers.find(p=>p.id===finalMatch.winner_id);
+  const second   = tournamentPlayers.find(p=>p.id===(finalMatch.player1_id===finalMatch.winner_id?finalMatch.player2_id:finalMatch.player1_id));
+  const third    = thirdMatch ? tournamentPlayers.find(p=>p.id===thirdMatch.winner_id) : null;
+  const fourth   = thirdMatch ? tournamentPlayers.find(p=>p.id===(thirdMatch.player1_id===thirdMatch.winner_id?thirdMatch.player2_id:thirdMatch.player1_id)) : null;
+
+  AudioFX.victory();
+
+  const overlay = document.createElement('div');
+  overlay.id = 'league-winner-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.9);display:flex;align-items:center;justify-content:center;z-index:9999;padding:20px;backdrop-filter:blur(6px)';
+  overlay.innerHTML = `
+    <div style="background:var(--dark2);border:2px solid var(--gold);border-radius:20px;
+      padding:32px 24px;text-align:center;max-width:420px;width:100%;
+      box-shadow:0 0 60px rgba(201,168,76,0.5)">
+      <div style="font-size:48px;margin-bottom:8px">🏆</div>
+      <div style="font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:16px">
+        Campeón de la Liga
+      </div>
+      <div style="font-size:32px;font-weight:900;color:var(--gold);margin-bottom:4px">
+        👑 ${escHtml(champion?.name||'?')}
+      </div>
+      <hr style="border-color:var(--border);margin:16px 0">
+      <div style="display:grid;gap:8px">
+        <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--dark3);border-radius:var(--radius)">
+          <span style="font-size:20px">👑</span><span style="flex:1;font-weight:700">1° ${escHtml(champion?.name||'?')}</span>
+          <span style="color:var(--gold);font-size:12px">${champion?.points||0}pts</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--dark3);border-radius:var(--radius)">
+          <span style="font-size:20px">🥈</span><span style="flex:1">${escHtml(second?.name||'?')}</span>
+          <span style="color:#aaa;font-size:12px">${second?.points||0}pts</span>
+        </div>
+        ${third?`<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--dark3);border-radius:var(--radius)">
+          <span style="font-size:20px">🥉</span><span style="flex:1">${escHtml(third.name)}</span>
+          <span style="color:#cd7f32;font-size:12px">${third.points||0}pts</span>
+        </div>`:''}
+        ${fourth?`<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--dark3);border-radius:var(--radius)">
+          <span style="font-size:20px">4️⃣</span><span style="flex:1">${escHtml(fourth.name)}</span>
+          <span style="color:var(--muted);font-size:12px">${fourth.points||0}pts</span>
+        </div>`:''}
+      </div>
+      <button class="btn btn-primary w-full" style="margin-top:20px" onclick="document.getElementById('league-winner-overlay').remove();finalizarLiga()">
+        🎉 Finalizar Liga
+      </button>
+    </div>`;
+  document.body.appendChild(overlay);
+}
+
+async function finalizarLiga() {
+  await _supabase.from('tournaments').update({status:'finished',league_phase:'finished'}).eq('id',currentTournament.id);
+  currentTournament.status='finished';
+  currentTournament.league_phase='finished';
+  renderLeagueView();
 }
 
 // ── CLASIFICACIÓN ─────────────────────────────────────────
