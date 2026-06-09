@@ -73,15 +73,24 @@ async function onAuthSuccess(user) {
   const roleEl = document.getElementById('nav-role');
   const btnTournament = document.getElementById('btn-new-tournament');
   const btnAnnounce   = document.getElementById('btn-announce');
+  const btnTimer = document.getElementById('btn-timer');
   if (isAdmin) {
     roleEl.style.display = '';
     if (btnTournament) btnTournament.style.display = '';
     if (btnAnnounce)   btnAnnounce.style.display   = '';
+    if (btnTimer)      btnTimer.style.display       = '';
   } else {
     roleEl.style.display = 'none';
     if (btnTournament) btnTournament.style.display = 'none';
     if (btnAnnounce)   btnAnnounce.style.display   = 'none';
+    if (btnTimer)      btnTimer.style.display       = 'none';
   }
+
+  // Init notifications UI and global channel
+  setTimeout(() => {
+    renderNotifButton();
+    if (Notification.permission === 'granted') subscribeGlobalNotifications();
+  }, 500);
 
   showScreen('screen-dashboard');
   loadDashboard();
