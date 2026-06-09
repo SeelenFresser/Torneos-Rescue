@@ -400,43 +400,99 @@ function renderRoomCmdrTab(el) {
   const slots = JSON.parse(roomState.room?.slots || '[]');
   const myId = roomState.mySlot?.id;
   const opponents = slots.filter(s => s.id !== myId);
-
-  // Leer daño desde room slots
-  const mySlot = slots.find(s => s.id === myId);
+  const mySlotIdx = slots.findIndex(s => s.id === myId);
+  const mySlot = slots[mySlotIdx];
   const dmgReceived = mySlot?.commanderDmg || {};
+  const FATAL = 21;
 
   el.innerHTML = `
-    <p style="font-size:12px;color:var(--muted);margin-bottom:10px">
-      Daño recibido de comandantes ajenos. A 21 = eliminado.
-    </p>
-    <div class="cmdr-damage-grid" style="margin-bottom:14px">
-      ${opponents.map(opp => {
+    <!-- TÍTULO -->
+    <div style="text-align:center;margin-bottom:14px">
+      <div style="font-size:13px;font-weight:700;color:var(--magic)">⚔️ Daño de Comandante</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:2px">A 21 puntos = eliminado</div>
+    </div>
+
+    <!-- DAÑO RECIBIDO — tarjetas por oponente -->
+    <div style="display:grid;gap:10px;margin-bottom:16px">
+      ${opponents.map((opp, i) => {
+        const c = LIFE_COLORS[(mySlotIdx + i + 1) % LIFE_COLORS.length];
         const dmg = dmgReceived[opp.id] || 0;
-        return `<div class="cmdr-dmg-row">
-          <div class="cmdr-dmg-name" style="color:${opp.color||'var(--muted)'}">
-            De ${escHtml(opp.name)}
+        const pct = Math.min(dmg / FATAL, 1);
+        const isFatal = dmg >= FATAL;
+        const isDanger = dmg >= 16 && !isFatal;
+        const barColor = isFatal ? '#FF2020' : isDanger ? '#FF8800' : c.accent;
+
+        return `<div style="background:${c.bg};border-radius:14px;padding:14px 16px;
+          border:2px solid ${isFatal?'#FF2020':isDanger?'#FF8800':c.accent}44;
+          position:relative;overflow:hidden">
+
+          <!-- Nombre oponente -->
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+            <div style="font-size:13px;font-weight:800;color:${c.accent};text-transform:uppercase;
+              letter-spacing:0.5px">
+              ${escHtml(opp.name)}
+            </div>
+            <div id="room-rcvd-${opp.id}" style="font-size:28px;font-weight:900;color:#fff;
+              text-shadow:0 2px 10px ${barColor}80">
+              ${dmg}
+              <span style="font-size:14px;color:${c.accent}80">/ ${FATAL}</span>
+            </div>
           </div>
-          <div class="cmdr-dmg-val ${dmg>=16?'danger':''}" id="room-rcvd-${opp.id}">${dmg}</div>
-          <div class="cmdr-dmg-btns">
-            <button class="dmg-btn minus" onclick="changeRoomCmdrDmg('${opp.id}',-1)">−</button>
-            <button class="dmg-btn plus"  onclick="changeRoomCmdrDmg('${opp.id}',+1)">+</button>
-            <button class="dmg-btn plus"  onclick="changeRoomCmdrDmg('${opp.id}',+2)">+2</button>
+
+          <!-- Barra de progreso -->
+          <div style="height:8px;background:rgba(0,0,0,0.3);border-radius:4px;
+            margin-bottom:12px;overflow:hidden">
+            <div id="room-bar-${opp.id}" style="height:100%;border-radius:4px;
+              background:${barColor};width:${pct*100}%;
+              transition:width 0.3s ease,background 0.3s ease;
+              box-shadow:0 0 8px ${barColor}80"></div>
           </div>
-          ${dmg>=21?'<span style="color:var(--red);font-size:11px;font-weight:700">💀 FATAL</span>':''}
+
+          <!-- Botones -->
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:6px">
+            <button onclick="changeRoomCmdrDmg('${opp.id}',-2)"
+              style="padding:8px 0;background:rgba(0,0,0,0.3);border:1px solid ${c.accent}30;
+              border-radius:8px;color:${c.accent};font-size:12px;font-weight:700;cursor:pointer">−2</button>
+            <button onclick="changeRoomCmdrDmg('${opp.id}',-1)"
+              style="padding:8px 0;background:rgba(0,0,0,0.3);border:1px solid ${c.accent}30;
+              border-radius:8px;color:${c.accent};font-size:13px;font-weight:700;cursor:pointer">−1</button>
+            <button onclick="changeRoomCmdrDmg('${opp.id}',+1)"
+              style="padding:8px 0;background:${c.btnPlus}88;border:none;
+              border-radius:8px;color:#fff;font-size:13px;font-weight:700;cursor:pointer">+1</button>
+            <button onclick="changeRoomCmdrDmg('${opp.id}',+2)"
+              style="padding:8px 0;background:${c.btnPlus};border:none;
+              border-radius:8px;color:#fff;font-size:13px;font-weight:700;cursor:pointer">+2</button>
+          </div>
+
+          ${isFatal ? `
+            <div style="margin-top:10px;text-align:center;font-size:14px;font-weight:800;
+              color:#FF2020;letter-spacing:1px">
+              ⚔️ 21+ — DAÑO FATAL
+            </div>` : ''}
         </div>`;
       }).join('')}
     </div>
-    <hr>
-    <p style="font-size:12px;color:var(--muted);margin:10px 0">Daño que hice yo con mi comandante:</p>
-    <div class="cmdr-damage-grid">
+
+    <!-- MI DAÑO ENVIADO — compacto -->
+    <div style="background:#220016;border:1px solid #4A0030;border-radius:12px;padding:12px 14px">
+      <div style="font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase;
+        letter-spacing:1px;margin-bottom:10px">Mi daño enviado</div>
       ${opponents.map(opp => {
-        // Leer del slot del oponente (lo que yo le mandé)
         const oppSlot = slots.find(s => s.id === opp.id);
         const dmgSent = oppSlot?.commanderDmg?.[myId] || 0;
-        return `<div class="cmdr-dmg-row">
-          <div class="cmdr-dmg-name">A ${escHtml(opp.name)}</div>
-          <div class="cmdr-dmg-val ${dmgSent>=16?'danger':''}">${dmgSent}</div>
-          <div style="font-size:11px;color:var(--muted)">(el oponente lo registra)</div>
+        const pctSent = Math.min(dmgSent / FATAL, 1);
+        const c = LIFE_COLORS[slots.findIndex(s=>s.id===opp.id) % LIFE_COLORS.length];
+        return `<div style="display:flex;align-items:center;gap:10px;padding:6px 0;
+          border-bottom:1px solid #2D0020">
+          <div style="font-size:12px;color:${c.accent};flex:1">${escHtml(opp.name)}</div>
+          <div style="flex:2;height:6px;background:rgba(255,255,255,0.05);border-radius:3px;overflow:hidden">
+            <div style="height:100%;background:${c.accent};width:${pctSent*100}%;
+              border-radius:3px;transition:width 0.3s"></div>
+          </div>
+          <div style="font-size:13px;font-weight:700;color:#fff;min-width:30px;text-align:right">
+            ${dmgSent}
+          </div>
+          <div style="font-size:10px;color:var(--muted2)">/ ${FATAL}</div>
         </div>`;
       }).join('')}
     </div>
@@ -454,13 +510,20 @@ async function changeRoomCmdrDmg(oppId, delta) {
   const next = Math.max(0, prev + delta);
   slots[idx].commanderDmg[oppId] = next;
 
-  const el = document.getElementById('room-rcvd-' + oppId);
-  if (el) {
-    el.textContent = next;
-    el.className = 'cmdr-dmg-val' + (next>=16?' danger':'');
+  // Actualizar número
+  const numEl = document.getElementById('room-rcvd-' + oppId);
+  if (numEl) numEl.firstChild.textContent = next;
+
+  // Actualizar barra
+  const barEl = document.getElementById('room-bar-' + oppId);
+  if (barEl) {
+    const pct = Math.min(next / 21, 1);
+    const barColor = next >= 21 ? '#FF2020' : next >= 16 ? '#FF8800' : null;
+    barEl.style.width = (pct * 100) + '%';
+    if (barColor) barEl.style.background = barColor;
   }
 
-  if (next >= 21) { AudioFX.danger(); showToast('💀 ¡Daño de comandante fatal!'); }
+  if (next >= 21) { AudioFX.danger(); showToast('⚔️ ¡Daño de comandante fatal!'); }
   else delta > 0 ? AudioFX.minus() : AudioFX.tap();
 
   await _supabase.from('commander_rooms')
