@@ -3,7 +3,7 @@
 // =============================================
 
 // URL de la Edge Function (se actualiza con tu project ID)
-const ANNOUNCE_FN_URL = 'https://yumtuojuktcuqeajslrn.supabase.co/functions/v1/send-announcement';
+const ANNOUNCE_FN_URL = '/api/send-announcement';
 
 async function openAnnounceModal() {
   AudioFX.tap();
@@ -99,9 +99,9 @@ async function sendAnnouncement() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         subject, message,
-        tournament_id: tournamentId,
+        emails,
         admin_secret: 'rescuetcg_admin_2026',
-        emails
+        tournament_data: tournamentId ? { id: tournamentId } : null
       })
     });
 
