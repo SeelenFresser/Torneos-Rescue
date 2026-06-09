@@ -57,7 +57,8 @@
       <div style="display:flex;gap:8px">
         <button class="btn btn-sm" id="btn-announce" style="display:none;border-color:var(--std);color:var(--std)"
           onclick="openAnnounceModal()">📧 Anuncio</button>
-        <button class="btn btn-primary" id="btn-new-tournament" style="display:none" onclick="openNewTournamentModal()">+ Nuevo torneo</button>
+        <button class="btn btn-sm" id="btn-timer" style="display:none;border-color:var(--std);color:var(--std)" onclick="openTimerModal()">⏱ Timer</button>
+      <button class="btn btn-primary" id="btn-new-tournament" style="display:none" onclick="openNewTournamentModal()">+ Nuevo torneo</button>
       </div>
     </div>
     <div id="quick-tools" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px"></div>
@@ -279,6 +280,29 @@
   </div>
 </div>
 
+<!-- MODAL: Timer de ronda -->
+<div id="modal-timer" class="modal-overlay" style="display:none" onclick="closeModal('modal-timer')">
+  <div class="modal-box" onclick="event.stopPropagation()" style="max-width:320px">
+    <div class="modal-header">
+      <h3>⏱ Timer de ronda</h3>
+      <button class="btn btn-ghost btn-sm" onclick="closeModal('modal-timer')">✕</button>
+    </div>
+    <div class="modal-body">
+      <label class="label">Nombre de la ronda</label>
+      <input class="input" id="timer-label" type="text" placeholder="Ronda 1, Liga Semana 2..." value="Ronda">
+      <label class="label">Duración (minutos)</label>
+      <input class="input" id="timer-minutes" type="number" min="1" max="180" value="50"
+        oninput="updateTimerPreview()">
+      <div style="text-align:center;font-size:48px;font-weight:900;color:var(--std);margin:12px 0"
+        id="timer-preview">50:00</div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-timer')">Cancelar</button>
+      <button class="btn btn-primary" onclick="startTimerFromModal()">▶ Iniciar timer</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL: Editar resultado (Admin) -->
 <div id="modal-edit-match" class="modal-overlay" style="display:none" onclick="closeModal('modal-edit-match')">
   <div class="modal-box" onclick="event.stopPropagation()">
@@ -363,6 +387,9 @@
 <script src="js/supabase.js"></script>
 <script src="js/game-app.js"></script>
 <script src="js/league.js"></script>
+<script src="js/profile.js"></script>
+<script src="js/timer.js"></script>
+<script src="js/notifications.js"></script>
 <script src="js/rooms.js"></script>
 <script src="js/auth.js"></script>
 <script src="js/dashboard.js"></script>
