@@ -42,7 +42,12 @@ body {
   font-size: 14px;
   line-height: 1.5;
   min-height: 100vh;
+  min-height: 100dvh;
   background-image: radial-gradient(ellipse at top, #2D001F 0%, #1A0010 60%);
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
 }
 
 /* ===== SCREENS ===== */
@@ -125,9 +130,21 @@ body {
   background: var(--dark2);
   border-bottom: 1px solid var(--border);
   padding: 10px 16px;
+  padding-top: max(12px, env(safe-area-inset-top, 0px));
   display: flex; align-items: center; justify-content: space-between;
   position: sticky; top: 0; z-index: 100;
   box-shadow: 0 2px 16px rgba(0,0,0,0.4);
+  min-height: calc(52px + env(safe-area-inset-top, 0px));
+}
+
+/* Botón de salir más grande y fácil de tocar en móvil */
+#screen-game .navbar button:first-child,
+#screen-tournament .navbar button:first-child {
+  min-width: 72px;
+  min-height: 40px;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 8px 12px;
 }
 .nav-logo { display: flex; align-items: center; gap: 10px; }
 .nav-logo img { height: 32px; object-fit: contain; }
