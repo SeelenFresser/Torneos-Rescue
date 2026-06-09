@@ -642,58 +642,121 @@ function resetMyLife() {
   if(el){el.textContent=gameState.startLife;el.className='life-num';}
 }
 
-// Daño de comandante que YO he recibido de cada oponente
+// Daño de comandante — diseño visual con barras
 function renderMyCmdrDmgTab(el) {
-  const myId=gameState.myPlayer.id;
-  const opponents=gameState.players.filter(p=>p.id!==myId);
+  const myId = gameState.myPlayer.id;
+  const opponents = gameState.players.filter(p => p.id !== myId);
+  const FATAL = 21;
 
   el.innerHTML = `
-    <p style="font-size:12px;color:var(--muted);margin-bottom:10px">
-      Daño de comandante que has recibido. A 21 = eliminado.
-    </p>
-    <div class="cmdr-damage-grid" style="margin-bottom:16px">
-      ${opponents.map(att=>{
-        const dmg=gameState.commanderDmg[att.id]?.[myId]||0;
-        return `<div class="cmdr-dmg-row">
-          <div class="cmdr-dmg-name">De ${escHtml(att.name)}</div>
-          <div class="cmdr-dmg-val ${dmg>=16?'danger':''}" id="rcvd-${att.id}">${dmg}</div>
-          <div class="cmdr-dmg-btns">
-            <button class="dmg-btn minus" onclick="changeDmgReceived('${att.id}',-1)">−</button>
-            <button class="dmg-btn plus" onclick="changeDmgReceived('${att.id}',+1)">+</button>
-            <button class="dmg-btn plus" onclick="changeDmgReceived('${att.id}',+2)">+2</button>
+    <div style="text-align:center;margin-bottom:14px">
+      <div style="font-size:13px;font-weight:700;color:var(--magic)">⚔️ Daño de Comandante</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:2px">A 21 puntos = eliminado</div>
+    </div>
+
+    <!-- DAÑO RECIBIDO -->
+    <div style="display:grid;gap:10px;margin-bottom:16px">
+      ${opponents.map((att, i) => {
+        const c = LIFE_COLORS[(gameState.players.findIndex(p=>p.id===myId) + i + 1) % LIFE_COLORS.length];
+        const dmg = gameState.commanderDmg[att.id]?.[myId] || 0;
+        const pct = Math.min(dmg / FATAL, 1);
+        const isFatal = dmg >= FATAL;
+        const isDanger = dmg >= 16 && !isFatal;
+        const barColor = isFatal ? '#FF2020' : isDanger ? '#FF8800' : c.accent;
+
+        return `<div style="background:${c.bg};border-radius:14px;padding:14px 16px;
+          border:2px solid ${isFatal?'#FF2020':isDanger?'#FF8800':c.accent}44;
+          position:relative;overflow:hidden">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+            <div style="font-size:13px;font-weight:800;color:${c.accent};
+              text-transform:uppercase;letter-spacing:0.5px">
+              ${escHtml(att.name)}
+            </div>
+            <div id="rcvd-${att.id}" style="font-size:28px;font-weight:900;color:#fff;
+              text-shadow:0 2px 10px ${barColor}80">
+              ${dmg}<span style="font-size:14px;color:${c.accent}80"> / ${FATAL}</span>
+            </div>
           </div>
-          ${dmg>=21?'<span style="color:var(--red);font-size:11px;font-weight:700">💀 FATAL</span>':''}
+          <div style="height:8px;background:rgba(0,0,0,0.3);border-radius:4px;
+            margin-bottom:12px;overflow:hidden">
+            <div id="rcvd-bar-${att.id}" style="height:100%;border-radius:4px;
+              background:${barColor};width:${pct*100}%;
+              transition:width 0.3s,background 0.3s;
+              box-shadow:0 0 8px ${barColor}80"></div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:6px">
+            <button onclick="changeDmgReceived('${att.id}',-2)"
+              style="padding:8px 0;background:rgba(0,0,0,0.3);border:1px solid ${c.accent}30;
+              border-radius:8px;color:${c.accent};font-size:12px;font-weight:700;cursor:pointer">−2</button>
+            <button onclick="changeDmgReceived('${att.id}',-1)"
+              style="padding:8px 0;background:rgba(0,0,0,0.3);border:1px solid ${c.accent}30;
+              border-radius:8px;color:${c.accent};font-size:12px;font-weight:700;cursor:pointer">−1</button>
+            <button onclick="changeDmgReceived('${att.id}',+1)"
+              style="padding:8px 0;background:${c.btnPlus}88;border:none;
+              border-radius:8px;color:#fff;font-size:12px;font-weight:700;cursor:pointer">+1</button>
+            <button onclick="changeDmgReceived('${att.id}',+2)"
+              style="padding:8px 0;background:${c.btnPlus};border:none;
+              border-radius:8px;color:#fff;font-size:12px;font-weight:700;cursor:pointer">+2</button>
+          </div>
+          ${isFatal ? `<div style="margin-top:8px;text-align:center;font-size:13px;
+            font-weight:800;color:#FF2020;letter-spacing:1px">⚔️ DAÑO FATAL</div>` : ''}
         </div>`;
       }).join('')}
     </div>
-    <hr>
-    <p style="font-size:12px;color:var(--muted);margin:10px 0">Daño que tú has hecho con tu comandante:</p>
-    <div class="cmdr-damage-grid">
-      ${opponents.map(vic=>{
-        const dmg=gameState.commanderDmg[myId]?.[vic.id]||0;
-        return `<div class="cmdr-dmg-row">
-          <div class="cmdr-dmg-name">A ${escHtml(vic.name)}</div>
-          <div class="cmdr-dmg-val ${dmg>=16?'danger':''}" id="sent-${vic.id}">${dmg}</div>
-          <div class="cmdr-dmg-btns">
-            <button class="dmg-btn minus" onclick="changeDmgSent('${vic.id}',-1)">−</button>
-            <button class="dmg-btn plus" onclick="changeDmgSent('${vic.id}',+1)">+</button>
-            <button class="dmg-btn plus" onclick="changeDmgSent('${vic.id}',+2)">+2</button>
+
+    <!-- MI DAÑO ENVIADO -->
+    <div style="background:#220016;border:1px solid #4A0030;border-radius:12px;padding:12px 14px">
+      <div style="font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase;
+        letter-spacing:1px;margin-bottom:10px">Mi daño enviado</div>
+      ${opponents.map(vic => {
+        const dmg = gameState.commanderDmg[myId]?.[vic.id] || 0;
+        const pct = Math.min(dmg / FATAL, 1);
+        const c = LIFE_COLORS[gameState.players.findIndex(p=>p.id===vic.id) % LIFE_COLORS.length];
+        return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;
+          border-bottom:1px solid #2D0020">
+          <div style="font-size:12px;color:${c.accent};flex:1">${escHtml(vic.name)}</div>
+          <div style="flex:2;height:6px;background:rgba(255,255,255,0.05);border-radius:3px;overflow:hidden">
+            <div style="height:100%;background:${c.accent};width:${pct*100}%;
+              border-radius:3px;transition:width 0.3s"></div>
           </div>
-          ${dmg>=21?'<span style="color:var(--std);font-size:11px;font-weight:700">💥 21+</span>':''}
+          <div id="sent-${vic.id}" style="font-size:13px;font-weight:700;color:#fff;
+            min-width:24px;text-align:right">${dmg}</div>
+          <div style="font-size:10px;color:var(--muted2)">/ ${FATAL}</div>
+          <div style="display:flex;gap:4px">
+            <button onclick="changeDmgSent('${vic.id}',-1)"
+              style="padding:4px 7px;background:rgba(0,0,0,0.3);border:1px solid ${c.accent}30;
+              border-radius:6px;color:${c.accent};font-size:11px;cursor:pointer">−</button>
+            <button onclick="changeDmgSent('${vic.id}',+1)"
+              style="padding:4px 7px;background:${c.btnPlus}88;border:none;
+              border-radius:6px;color:#fff;font-size:11px;cursor:pointer">+</button>
+            <button onclick="changeDmgSent('${vic.id}',+2)"
+              style="padding:4px 7px;background:${c.btnPlus};border:none;
+              border-radius:6px;color:#fff;font-size:11px;cursor:pointer">+2</button>
+          </div>
         </div>`;
       }).join('')}
     </div>`;
 }
 
 function changeDmgReceived(attId, delta) {
-  const myId=gameState.myPlayer.id;
-  if(!gameState.commanderDmg[attId]) gameState.commanderDmg[attId]={};
-  const next=Math.max(0,(gameState.commanderDmg[attId][myId]||0)+delta);
-  gameState.commanderDmg[attId][myId]=next;
-  const el=document.getElementById('rcvd-'+attId);
-  if(el){el.textContent=next;el.className='cmdr-dmg-val'+(next>=16?' danger':'');}
-  if(next>=21){AudioFX.danger();showToast('💀 ¡Daño de comandante fatal!');}
-  else delta>0?AudioFX.minus():AudioFX.tap();
+  const myId = gameState.myPlayer.id;
+  if (!gameState.commanderDmg[attId]) gameState.commanderDmg[attId] = {};
+  const next = Math.max(0, (gameState.commanderDmg[attId][myId] || 0) + delta);
+  gameState.commanderDmg[attId][myId] = next;
+
+  const el = document.getElementById('rcvd-' + attId);
+  if (el) el.firstChild.textContent = next;
+
+  const bar = document.getElementById('rcvd-bar-' + attId);
+  if (bar) {
+    const pct = Math.min(next / 21, 1);
+    const barColor = next >= 21 ? '#FF2020' : next >= 16 ? '#FF8800' : null;
+    bar.style.width = (pct * 100) + '%';
+    if (barColor) bar.style.background = barColor;
+  }
+
+  if (next >= 21) { AudioFX.danger(); showToast('⚔️ ¡Daño de comandante fatal!'); }
+  else delta > 0 ? AudioFX.minus() : AudioFX.tap();
   broadcastPodState();
 }
 
