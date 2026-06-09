@@ -364,17 +364,98 @@ async function changeRoomLife(delta) {
   const life = slots[idx].life;
 
   // Actualizar visual inmediato
-  const el = document.getElementById('room-life-' + myId);
-  if (el) {
-    el.textContent = life;
-    el.className = 'life-num ' + (life<=5?'critical':life<=10?'danger':'');
+  const lifeEl = document.getElementById('room-life-' + myId);
+  if (lifeEl) {
+    lifeEl.textContent = life;
+    lifeEl.style.fontSize = life >= 100 ? '52px' : life >= 10 ? '64px' : '76px';
+  }
+
+  const card = document.getElementById('room-card-' + myId);
+  if (card) {
+    const c = LIFE_COLORS[idx % LIFE_COLORS.length];
+    const isDanger = life <= 5 && life > 0;
+    const isWarn = life <= 10 && life > 5;
+    card.style.borderColor = (isDanger?'#FF4444':isWarn?'#FFA500':c.accent) + '99';
+    card.style.opacity = life <= 0 ? '0.5' : '1';
   }
 
   delta < 0 ? (life<=5 ? AudioFX.danger() : AudioFX.minus()) : AudioFX.plus();
 
-  // Guardar en DB + broadcast
+  // Guardar en DB
   await _supabase.from('commander_rooms')
     .update({ slots: JSON.stringify(slots) }).eq('id', roomState.room.id);
+
+  // Verificar si solo queda 1 jugador vivo → anunciar ganador
+  checkRoomWinner(slots);
+}
+
+function checkRoomWinner(slots) {
+  const alive = slots.filter(s => (s.life ?? 40) > 0);
+  if (alive.length === 1 && slots.length > 1) {
+    // Solo queda 1 — es el ganador
+    setTimeout(() => showRoomWinner(alive[0], slots), 500);
+  }
+}
+
+function showRoomWinner(winner, slots) {
+  // No mostrar dos veces
+  if (document.getElementById('room-winner-overlay')) return;
+
+  AudioFX.victory();
+  const sorted = [...slots].sort((a,b) => (b.life??0) - (a.life??0));
+
+  const overlay = document.createElement('div');
+  overlay.id = 'room-winner-overlay';
+  overlay.style.cssText = `position:fixed;inset:0;background:rgba(0,0,0,0.92);
+    display:flex;align-items:center;justify-content:center;
+    z-index:9999;padding:20px;backdrop-filter:blur(8px)`;
+
+  overlay.innerHTML = `
+    <div style="background:#1A0010;border:2px solid var(--gold);border-radius:20px;
+      padding:32px 24px;text-align:center;max-width:380px;width:100%;
+      box-shadow:0 0 60px rgba(245,208,96,0.4)">
+
+      <!-- Mad Bunny glow -->
+      <div style="font-size:56px;margin-bottom:4px">👑</div>
+
+      <div style="font-size:13px;color:var(--muted);text-transform:uppercase;
+        letter-spacing:2px;margin-bottom:12px">¡Ganador de la partida!</div>
+
+      <div style="font-size:36px;font-weight:900;color:var(--gold);margin-bottom:4px">
+        ${escHtml(winner.name)}
+      </div>
+      <div style="font-size:14px;color:var(--muted);margin-bottom:20px">
+        ${winner.life} puntos de vida restantes
+      </div>
+
+      <!-- Clasificación final -->
+      <div style="background:#220016;border-radius:12px;padding:12px 16px;margin-bottom:20px">
+        <div style="font-size:11px;color:var(--muted);text-transform:uppercase;
+          letter-spacing:1px;margin-bottom:10px">Clasificación final</div>
+        ${sorted.map((s, i) => {
+          const icons = ['👑','🥈','🥉','4️⃣','5️⃣','6️⃣'];
+          const c = LIFE_COLORS[slots.findIndex(sl=>sl.id===s.id) % LIFE_COLORS.length];
+          return `<div style="display:flex;align-items:center;gap:10px;
+            padding:6px 0;border-bottom:1px solid #2D0020">
+            <span style="font-size:18px">${icons[i]||i+1}</span>
+            <span style="flex:1;font-size:13px;font-weight:${i===0?'700':'400'};
+              color:${i===0?'var(--gold)':'var(--text)'}">
+              ${escHtml(s.name)}
+            </span>
+            <span style="font-size:12px;color:${c.accent}">${s.life??0} PV</span>
+          </div>`;
+        }).join('')}
+      </div>
+
+      <div style="display:flex;gap:8px">
+        <button onclick="document.getElementById('room-winner-overlay').remove()"
+          class="btn btn-ghost" style="flex:1">Seguir jugando</button>
+        <button onclick="document.getElementById('room-winner-overlay').remove();leaveGame()"
+          class="btn btn-primary" style="flex:1">Salir</button>
+      </div>
+    </div>`;
+
+  document.body.appendChild(overlay);
 }
 
 async function applyRoomCustomLife() {
