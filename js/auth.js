@@ -35,6 +35,12 @@ async function doRegister() {
     options: { data: { display_name: name } }
   });
   if (error) { setAuthError(error.message); return; }
+  // Enviar email de bienvenida (silencioso)
+  fetch('/api/send-welcome', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ email, username: name, admin_secret: 'rescuetcg_admin_2026' })
+  }).catch(() => {});
   await onAuthSuccess(data.user);
 }
 
@@ -104,3 +110,90 @@ async function initAuth() {
     showScreen('screen-auth');
   }
 }
+
+// ── RECUPERACIÓN DE CONTRASEÑA ────────────────────────────
+function showForgotPassword() {
+  document.getElementById('auth-login').innerHTML = `
+    <h3 style="color:var(--text);font-size:16px;font-weight:700;margin-bottom:12px">Recuperar contraseña</h3>
+    <p style="color:var(--muted);font-size:13px;margin-bottom:12px">
+      Ingresa tu correo y te enviaremos un enlace.
+    </p>
+    <input class="input" id="reset-email" type="email" placeholder="Correo electrónico"
+      onkeydown="if(event.key==='Enter')requestPasswordReset()">
+    <button class="btn btn-primary w-full" onclick="requestPasswordReset()">📧 Enviar enlace</button>
+    <p id="reset-status" style="text-align:center;font-size:13px;min-height:20px;margin-top:8px;color:var(--green)"></p>
+    <p style="text-align:center;margin-top:8px;font-size:13px">
+      <a style="color:var(--muted);cursor:pointer" onclick="location.reload()">← Volver al login</a>
+    </p>
+  `;
+}
+
+async function requestPasswordReset() {
+  const email = document.getElementById('reset-email')?.value?.trim();
+  const statusEl = document.getElementById('reset-status');
+  if (!email) { showToast('Ingresa tu correo'); return; }
+  statusEl.textContent = 'Enviando...';
+  statusEl.style.color = 'var(--muted)';
+  try {
+    await fetch('/api/reset-password-request', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ email })
+    });
+    statusEl.textContent = '✓ Si el correo existe, recibirás un enlace en breve.';
+    statusEl.style.color = 'var(--green)';
+  } catch(e) {
+    statusEl.textContent = 'Error enviando. Intenta de nuevo.';
+    statusEl.style.color = 'var(--red)';
+  }
+}
+
+async function handleResetToken(token) {
+  showScreen('screen-auth');
+  document.getElementById('auth-login').innerHTML = `
+    <h3 style="color:var(--text);font-size:16px;font-weight:700;margin-bottom:12px">Nueva contraseña</h3>
+    <input class="input" id="new-pass" type="password" placeholder="Nueva contraseña (mín. 6 caracteres)">
+    <input class="input" id="new-pass-confirm" type="password" placeholder="Confirmar contraseña">
+    <button class="btn btn-primary w-full" onclick="confirmPasswordReset('${token}')">🔐 Cambiar contraseña</button>
+    <p id="new-pass-status" style="text-align:center;font-size:13px;min-height:20px;margin-top:8px"></p>
+  `;
+}
+
+async function confirmPasswordReset(token) {
+  const newPass  = document.getElementById('new-pass')?.value;
+  const confirm  = document.getElementById('new-pass-confirm')?.value;
+  const statusEl = document.getElementById('new-pass-status');
+  if (!newPass || newPass.length < 6) { showToast('Mínimo 6 caracteres'); return; }
+  if (newPass !== confirm) { showToast('Las contraseñas no coinciden'); return; }
+  statusEl.textContent = 'Actualizando...';
+  statusEl.style.color = 'var(--muted)';
+  try {
+    const res = await fetch('/api/reset-password-confirm', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ token, new_password: newPass })
+    });
+    const data = await res.json();
+    if (res.ok) {
+      statusEl.textContent = '✓ Contraseña actualizada. Ya puedes iniciar sesión.';
+      statusEl.style.color = 'var(--green)';
+      setTimeout(() => location.reload(), 2000);
+    } else {
+      statusEl.textContent = data.error || 'Error';
+      statusEl.style.color = 'var(--red)';
+    }
+  } catch(e) {
+    statusEl.textContent = 'Error de conexión';
+    statusEl.style.color = 'var(--red)';
+  }
+}
+
+// Check reset token on load
+(function() {
+  const params = new URLSearchParams(window.location.search);
+  const token = params.get('reset_token');
+  if (token) {
+    window.history.replaceState({}, document.title, '/');
+    window.addEventListener('load', () => handleResetToken(token));
+  }
+})();
