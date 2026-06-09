@@ -528,32 +528,80 @@ function renderPodTab(tab) {
   else if (tab==='spin') renderSpinContent(el);
 }
 
-// Mi vida + vida de compañeros (solo ver)
+// Mi vida + vida de compañeros — diseño de paneles de color
 function renderMyLifeTab(el) {
   const myId = gameState.myPlayer.id;
   const players = gameState.players;
   const startLife = gameState.startLife;
+  const count = players.length;
+  const cols = count <= 2 ? 1 : count <= 4 ? 2 : 3;
 
-  el.innerHTML = `<div style="display:grid;gap:10px">
-    ${players.map(p=>{
-      const isMine = p.id===myId;
-      const life = gameState.lifePoints[p.id]??startLife;
-      const dangerClass = life<=5?'critical':life<=10?'danger':'';
-      return `<div class="life-counter ${isMine?'glow-pink':''}" style="padding:12px">
-        <div class="life-player">${escHtml(p.name)}${isMine?' (tú)':''}</div>
-        <div class="life-num ${dangerClass}" id="life-${p.id}" style="font-size:${isMine?'72px':'48px'}">${life}</div>
-        ${isMine?`
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:10px">
-          <button class="life-btn minus" style="width:100%;height:40px" onclick="changeMyLife(-5)">−5</button>
-          <button class="life-btn minus" style="width:100%;height:40px" onclick="changeMyLife(-1)">−1</button>
-          <button class="life-btn plus"  style="width:100%;height:40px" onclick="changeMyLife(+1)">+1</button>
-          <button class="life-btn plus"  style="width:100%;height:40px" onclick="changeMyLife(+5)">+5</button>
+  el.innerHTML = `<div style="display:grid;grid-template-columns:repeat(${cols},1fr);gap:6px;
+    height:calc(100vh - 160px)">
+    ${players.map((p, i) => {
+      const isMe = p.id === myId;
+      const c = LIFE_COLORS[i % LIFE_COLORS.length];
+      const life = gameState.lifePoints[p.id] ?? startLife;
+      const isDead = life <= 0;
+      const isDanger = life <= 5 && life > 0;
+      const isWarn = life <= 10 && life > 5;
+
+      return `<div style="
+        background:${c.bg};border-radius:16px;
+        display:flex;flex-direction:column;
+        align-items:center;justify-content:space-between;
+        padding:10px 8px;position:relative;overflow:hidden;
+        opacity:${isDead?'0.5':'1'};
+        box-shadow:inset 0 0 40px rgba(0,0,0,0.3);
+        border:2px solid ${isDanger?'#FF4444':isWarn?'#FFA500':c.accent}${isMe?'99':'44'};
+        min-height:0" id="card-${p.id}">
+
+        <div style="position:absolute;top:-20px;left:50%;transform:translateX(-50%);
+          width:120px;height:120px;border-radius:50%;
+          background:radial-gradient(circle,${c.accent}25 0%,transparent 70%);
+          pointer-events:none"></div>
+
+        <div style="font-size:11px;font-weight:800;color:${c.accent};
+          text-transform:uppercase;letter-spacing:0.5px;
+          border-bottom:2px solid ${c.accent}40;width:90%;text-align:center;
+          padding-bottom:3px">
+          ${escHtml(p.name)}${isMe?' (tú)':''}
         </div>
-        <div style="display:flex;gap:6px;margin-top:6px">
-          <input class="life-in" id="my-life-custom" type="number" placeholder="±" style="flex:1">
-          <button class="btn btn-sm" onclick="applyMyCustomLife()">Aplicar</button>
-          <button class="btn btn-sm btn-ghost" onclick="resetMyLife()">↺</button>
-        </div>`:''}
+
+        ${isMe ? `
+          <button onclick="changeMyLife(+1)"
+            style="width:100%;padding:6px 0;background:${c.btnPlus}88;border:none;
+            border-radius:10px;color:#fff;font-size:20px;font-weight:900;cursor:pointer">+</button>
+        ` : '<div style="height:34px"></div>'}
+
+        <div id="life-${p.id}" style="
+          font-size:${life>=100?'52px':life>=10?'64px':'76px'};
+          font-weight:900;color:#fff;line-height:1;
+          text-shadow:0 2px 20px ${c.accent}80">
+          ${life}
+        </div>
+
+        ${isMe ? `
+          <button onclick="changeMyLife(-1)"
+            style="width:100%;padding:6px 0;background:${c.btnMinus}88;border:none;
+            border-radius:10px;color:#fff;font-size:20px;font-weight:900;cursor:pointer">−</button>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;width:100%;margin-top:4px">
+            <button onclick="changeMyLife(-5)"
+              style="padding:5px 0;background:${c.btnMinus}66;border:none;border-radius:8px;
+              color:${c.accent};font-size:11px;font-weight:700;cursor:pointer">−5</button>
+            <button onclick="changeMyLife(+5)"
+              style="padding:5px 0;background:${c.btnPlus}66;border:none;border-radius:8px;
+              color:${c.accent};font-size:11px;font-weight:700;cursor:pointer">+5</button>
+          </div>
+          <button onclick="resetMyLife()"
+            style="margin-top:4px;padding:3px 10px;background:transparent;
+            border:1px solid ${c.accent}40;border-radius:6px;
+            color:${c.accent}80;font-size:10px;cursor:pointer">↺ ${startLife}</button>
+        ` : '<div></div>'}
+
+        ${isDead ? `<div style="position:absolute;inset:0;background:rgba(0,0,0,0.6);
+          display:flex;align-items:center;justify-content:center;
+          border-radius:14px;font-size:28px">💀</div>` : ''}
       </div>`;
     }).join('')}
   </div>`;
@@ -561,11 +609,23 @@ function renderMyLifeTab(el) {
 
 function changeMyLife(delta) {
   const myId = gameState.myPlayer.id;
-  gameState.lifePoints[myId]=(gameState.lifePoints[myId]??40)+delta;
-  const life=gameState.lifePoints[myId];
-  const el=document.getElementById('life-'+myId);
-  if(el){el.textContent=life;el.className='life-num'+(life<=5?' critical':life<=10?' danger':'');}
-  delta<0?(life<=5?AudioFX.danger():AudioFX.minus()):AudioFX.plus();
+  gameState.lifePoints[myId] = (gameState.lifePoints[myId] ?? 40) + delta;
+  const life = gameState.lifePoints[myId];
+  const el = document.getElementById('life-' + myId);
+  if (el) {
+    el.textContent = life;
+    el.style.fontSize = life >= 100 ? '52px' : life >= 10 ? '64px' : '76px';
+  }
+  const idx = gameState.players.findIndex(p => p.id === myId);
+  const card = document.getElementById('card-' + myId);
+  if (card && idx >= 0) {
+    const c = LIFE_COLORS[idx % LIFE_COLORS.length];
+    const isDanger = life <= 5 && life > 0;
+    const isWarn = life <= 10 && life > 5;
+    card.style.borderColor = (isDanger?'#FF4444':isWarn?'#FFA500':c.accent) + '99';
+    card.style.opacity = life <= 0 ? '0.5' : '1';
+  }
+  delta < 0 ? (life <= 5 ? AudioFX.danger() : AudioFX.minus()) : AudioFX.plus();
   broadcastPodState();
 }
 
