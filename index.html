@@ -26,6 +26,11 @@
         <input class="input" id="login-email" type="email" placeholder="Correo electrónico">
         <input class="input" id="login-pass" type="password" placeholder="Contraseña" onkeydown="if(event.key==='Enter')doLogin()">
         <button class="btn btn-primary w-full" onclick="doLogin()">Entrar</button>
+        <p style="text-align:center;margin-top:8px">
+          <a style="color:var(--muted);font-size:13px;cursor:pointer" onclick="showForgotPassword()">
+            ¿Olvidaste tu contraseña?
+          </a>
+        </p>
       </div>
       <div id="auth-register" style="display:none">
         <input class="input" id="reg-name" type="text" placeholder="Tu nombre o alias">
@@ -48,7 +53,9 @@
     <div class="nav-right">
       <span class="nav-user" id="nav-username"></span>
       <span class="nav-role" id="nav-role" style="display:none">Admin</span>
-      <button class="btn btn-ghost btn-sm" onclick="doLogout()">Salir</button>
+      <button class="btn btn-ghost btn-sm" id="btn-notif" onclick="toggleNotifications()" title="Notificaciones" style="padding:6px 8px">🔕</button>
+      <button class="btn btn-ghost btn-sm" id="btn-profile" onclick="openProfileScreen()" title="Mi perfil" style="padding:6px 8px">👤</button>
+      <button class="btn btn-ghost btn-sm" id="btn-logout" onclick="doLogout()">Salir</button>
     </div>
   </nav>
   <div class="container">
