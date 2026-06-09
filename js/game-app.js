@@ -145,6 +145,16 @@ function leaveGame() {
   else showScreen('screen-tournament');
 }
 
+
+const LIFE_COLORS = [
+  { bg: '#1A3A6E', accent: '#4A90D9', text: '#fff', btnMinus: '#1E4D9B', btnPlus: '#2060C0' },  // azul
+  { bg: '#6B4A00', accent: '#D4A020', text: '#fff', btnMinus: '#8B6000', btnPlus: '#A07010' },  // dorado
+  { bg: '#0D5C3A', accent: '#2ECC71', text: '#fff', btnMinus: '#0A7A4E', btnPlus: '#12A060' },  // verde
+  { bg: '#7A1040', accent: '#FF2D8A', text: '#fff', btnMinus: '#A01555', btnPlus: '#C01A65' },  // rosa
+  { bg: '#3D0D6B', accent: '#9B30FF', text: '#fff', btnMinus: '#52109A', btnPlus: '#6A20C0' },  // morado
+  { bg: '#5C2A00', accent: '#FF7700', text: '#fff', btnMinus: '#7A3800', btnPlus: '#9A4800' },  // naranja
+];
+
 // ===== FREE APP LAYOUT =====
 function renderFreeApp() {
   const mode = gameState.tournament?.type || 'standard';
@@ -189,57 +199,110 @@ function renderFreeTabContent() {
   else if (gameState.activeGame === 'cmdr') renderFreeCommanderDmgTab(el);
 }
 
-// ===== LIFE COUNTER — COMPACT NO SCROLL =====
+// ===== LIFE COUNTER — NUEVO DISEÑO POR COLORES =====
 function renderFreeLifeTab(el) {
   const players = gameState.freePlayers || [];
   const startLife = gameState.startLife || 20;
   const count = players.length;
-  // Grid responsive: 2 cols si <=4, 3 cols si 5-6
-  const cols = count <= 4 ? 2 : 3;
+  const cols = count <= 2 ? 1 : count <= 4 ? 2 : 3;
+
+  // Asignar colores a jugadores
+  players.forEach((p, i) => { p._colorIdx = i % LIFE_COLORS.length; });
 
   el.innerHTML = `
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-      <span style="font-size:12px;color:var(--muted)">${count} jugadores</span>
-      <div style="display:flex;gap:6px">
+    <div style="display:flex;justify-content:space-between;align-items:center;
+      margin-bottom:8px;padding:0 2px">
+      <span style="font-size:11px;color:var(--muted)">${count} jugadores · ${startLife} PV</span>
+      <div style="display:flex;gap:5px">
         ${count < 6 ? `<button class="btn btn-xs" onclick="addFreePlayer()">+ Jugador</button>` : ''}
-        ${count > 2 ? `<button class="btn btn-xs btn-danger" onclick="removeFreePlayerLast()">− Quitar</button>` : ''}
-        <button class="btn btn-xs btn-ghost" onclick="resetAllLife()">🔄 Reset</button>
+        ${count > 2 ? `<button class="btn btn-xs btn-danger" onclick="removeFreePlayerLast()">−</button>` : ''}
+        <button class="btn btn-xs btn-ghost" onclick="resetAllLife()">↺ Reset</button>
       </div>
     </div>
-    <div style="display:grid;grid-template-columns:repeat(${cols},1fr);gap:8px">
-      ${players.map(p => renderCompactLifeCard(p, startLife)).join('')}
+    <div style="display:grid;grid-template-columns:repeat(${cols},1fr);gap:6px;
+      height:calc(100vh - 160px)">
+      ${players.map((p,i) => renderColorLifeCard(p, startLife, i)).join('')}
     </div>
   `;
 }
 
-function renderCompactLifeCard(p, startLife) {
+function renderColorLifeCard(p, startLife, idx) {
   const life = gameState.lifePoints[p.id] ?? startLife;
-  const dangerClass = life <= 5 ? 'critical' : life <= 10 ? 'danger' : '';
+  const c = LIFE_COLORS[idx % LIFE_COLORS.length];
+  const isDead = life <= 0;
+  const isDanger = life <= 5 && life > 0;
+  const isWarn = life <= 10 && life > 5;
+
+  // Efecto de pulso en danger
+  const cardStyle = `
+    background:${c.bg};
+    border-radius:16px;
+    display:flex;flex-direction:column;
+    align-items:center;justify-content:space-between;
+    padding:10px 8px 10px;
+    position:relative;overflow:hidden;
+    opacity:${isDead?'0.5':'1'};
+    box-shadow: inset 0 0 40px rgba(0,0,0,0.3);
+    border: 2px solid ${isDanger?'#FF4444':isWarn?'#FFA500':c.accent}44;
+    min-height:0;
+  `;
+
   return `
-    <div class="life-counter" style="padding:10px 8px">
-      <div style="display:flex;align-items:center;gap:4px;margin-bottom:4px;justify-content:center">
-        <input style="background:transparent;border:none;border-bottom:1px solid var(--border2);
-          color:var(--pink-light);font-size:12px;font-weight:700;text-align:center;width:80px;outline:none"
-          value="${escHtml(p.name)}" onchange="renameFreePlayer('${p.id}',this.value)">
+    <div style="${cardStyle}" id="card-${p.id}">
+
+      <!-- Glow de fondo -->
+      <div style="position:absolute;top:-20px;left:50%;transform:translateX(-50%);
+        width:120px;height:120px;border-radius:50%;
+        background:radial-gradient(circle,${c.accent}30 0%,transparent 70%);
+        pointer-events:none"></div>
+
+      <!-- NOMBRE EDITABLE -->
+      <input style="background:transparent;border:none;border-bottom:2px solid ${c.accent}60;
+        color:${c.accent};font-size:12px;font-weight:800;text-align:center;
+        width:90%;outline:none;letter-spacing:0.5px;padding-bottom:2px;
+        text-transform:uppercase"
+        value="${escHtml(p.name)}"
+        onchange="renameFreePlayer('${p.id}',this.value)">
+
+      <!-- BOTÓN + ARRIBA -->
+      <button onclick="changeFreeLife('${p.id}',+1)"
+        style="width:100%;padding:6px 0;background:${c.btnPlus}88;border:none;
+        border-radius:10px;color:#fff;font-size:20px;font-weight:900;
+        cursor:pointer;letter-spacing:-1px">+</button>
+
+      <!-- NÚMERO DE VIDA -->
+      <div id="life-${p.id}" style="
+        font-size:${life >= 100 ? '52px' : life >= 10 ? '64px' : '76px'};
+        font-weight:900;color:#fff;line-height:1;
+        text-shadow: 0 2px 20px ${c.accent}80;
+        transition:font-size 0.1s">
+        ${life}
       </div>
-      <div class="life-num ${dangerClass}" id="life-${p.id}" style="font-size:52px">${life}</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-top:8px">
-        <button class="life-btn minus" style="width:100%;height:36px;border-radius:8px;font-size:16px"
-          onclick="changeFreeLife('${p.id}',-1)">−1</button>
-        <button class="life-btn plus" style="width:100%;height:36px;border-radius:8px;font-size:16px"
-          onclick="changeFreeLife('${p.id}',+1)">+1</button>
-        <button class="life-btn minus" style="width:100%;height:32px;border-radius:8px;font-size:13px"
-          onclick="changeFreeLife('${p.id}',-5)">−5</button>
-        <button class="life-btn plus" style="width:100%;height:32px;border-radius:8px;font-size:13px"
-          onclick="changeFreeLife('${p.id}',+5)">+5</button>
+
+      <!-- BOTÓN − ABAJO -->
+      <button onclick="changeFreeLife('${p.id}',-1)"
+        style="width:100%;padding:6px 0;background:${c.btnMinus}88;border:none;
+        border-radius:10px;color:#fff;font-size:20px;font-weight:900;
+        cursor:pointer">−</button>
+
+      <!-- CONTROLES EXTRA -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;width:100%;margin-top:4px">
+        <button onclick="changeFreeLife('${p.id}',-5)"
+          style="padding:5px 0;background:${c.btnMinus}66;border:none;border-radius:8px;
+          color:${c.accent};font-size:11px;font-weight:700;cursor:pointer">−5</button>
+        <button onclick="changeFreeLife('${p.id}',+5)"
+          style="padding:5px 0;background:${c.btnPlus}66;border:none;border-radius:8px;
+          color:${c.accent};font-size:11px;font-weight:700;cursor:pointer">+5</button>
       </div>
-      <div style="display:flex;gap:4px;margin-top:6px">
-        <input class="life-in" id="lc-${p.id}" type="number" placeholder="±"
-          style="flex:1;font-size:13px;padding:4px"
-          onkeydown="if(event.key==='Enter')applyCustomFreeLife('${p.id}')">
-        <button class="btn btn-xs" onclick="applyCustomFreeLife('${p.id}')">OK</button>
-        <button class="btn btn-xs btn-ghost" onclick="resetOneLife('${p.id}')">↺</button>
-      </div>
+
+      <!-- Reset individual -->
+      <button onclick="resetOneLife('${p.id}')"
+        style="margin-top:4px;padding:3px 10px;background:transparent;border:1px solid ${c.accent}40;
+        border-radius:6px;color:${c.accent}80;font-size:10px;cursor:pointer">↺ ${startLife}</button>
+
+      ${isDead ? `<div style="position:absolute;inset:0;background:rgba(0,0,0,0.6);
+        display:flex;align-items:center;justify-content:center;border-radius:14px;
+        font-size:28px">💀</div>` : ''}
     </div>`;
 }
 
@@ -247,11 +310,26 @@ function changeFreeLife(playerId, delta) {
   const start = gameState.startLife || 20;
   gameState.lifePoints[playerId] = (gameState.lifePoints[playerId] ?? start) + delta;
   const life = gameState.lifePoints[playerId];
+
+  // Actualizar número
   const el = document.getElementById('life-' + playerId);
   if (el) {
     el.textContent = life;
-    el.className = 'life-num ' + (life<=5?'critical':life<=10?'danger':'');
+    el.style.fontSize = life >= 100 ? '52px' : life >= 10 ? '64px' : '76px';
   }
+
+  // Actualizar borde de la card
+  const card = document.getElementById('card-' + playerId);
+  if (card) {
+    const idx = (gameState.freePlayers||[]).findIndex(p=>p.id===playerId);
+    const c = LIFE_COLORS[idx % LIFE_COLORS.length];
+    const isDead = life <= 0;
+    const isDanger = life <= 5 && life > 0;
+    const isWarn = life <= 10 && life > 5;
+    card.style.borderColor = (isDanger?'#FF4444':isWarn?'#FFA500':c.accent) + '44';
+    card.style.opacity = isDead ? '0.5' : '1';
+  }
+
   if (delta < 0) { life <= 5 ? AudioFX.danger() : AudioFX.minus(); }
   else AudioFX.plus();
 }
