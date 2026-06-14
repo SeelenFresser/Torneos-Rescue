@@ -257,27 +257,54 @@ async function _generateSwissRoundInternal() {
     .eq('tournament_id', currentTournament.id)
     .eq('match_type', 'swiss');
 
-  const prevPairs = new Set((prevMatches || []).map(m => [m.player1_id, m.player2_id].sort().join('|')));
+  const prevPairs = new Set((prevMatches || [])
+    .filter(m => m.player1_id && m.player2_id)
+    .map(m => [m.player1_id, m.player2_id].sort().join('|')));
 
-  // Ordenar por puntos desc, luego aleatorio para desempate
-  const sorted = [...players].sort((a, b) => (b.points - a.points) || (Math.random() - 0.5));
+  // Jugadores que ya tuvieron BYE
+  const hadBye = new Set((prevMatches || [])
+    .filter(m => !m.player2_id)
+    .map(m => m.player1_id));
+
+  // ── PASO 1: Ordenar por puntos desc, luego diferencial de juegos ──
+  const sorted = [...players].sort((a, b) =>
+    (b.points - a.points) ||
+    ((b.game_wins - b.game_losses) - (a.game_wins - a.game_losses))
+  );
 
   const pairings = [];
   const used = new Set();
 
+  // ── PASO 2: BYE al jugador de MENOR puntos que no haya tenido BYE ──
+  if (sorted.length % 2 !== 0) {
+    let byePlayer = null;
+    // Recorrer de menor a mayor puntos (de abajo hacia arriba)
+    for (let i = sorted.length - 1; i >= 0; i--) {
+      if (!hadBye.has(sorted[i].id)) {
+        byePlayer = sorted[i];
+        break;
+      }
+    }
+    // Si todos tuvieron BYE, dar al de menor puntos sin excepción
+    if (!byePlayer) byePlayer = sorted[sorted.length - 1];
+    pairings.push({ p1: byePlayer, p2: null });
+    used.add(byePlayer.id);
+  }
+
+  // ── PASO 3: Emparejar por puntos similares evitando rematches ──
   for (let i = 0; i < sorted.length; i++) {
     if (used.has(sorted[i].id)) continue;
     const p1 = sorted[i];
     let p2 = null;
 
-    // Buscar oponente sin rematch primero
+    // Buscar oponente más cercano en puntos sin rematch
     for (let j = i + 1; j < sorted.length; j++) {
       if (!used.has(sorted[j].id)) {
         const key = [p1.id, sorted[j].id].sort().join('|');
         if (!prevPairs.has(key)) { p2 = sorted[j]; break; }
       }
     }
-    // Si no hay oponente fresco, tomar el siguiente disponible
+    // Fallback: permitir rematch si no hay otra opción
     if (!p2) {
       for (let j = i + 1; j < sorted.length; j++) {
         if (!used.has(sorted[j].id)) { p2 = sorted[j]; break; }
@@ -287,9 +314,6 @@ async function _generateSwissRoundInternal() {
     if (p2) {
       pairings.push({ p1, p2 });
       used.add(p1.id); used.add(p2.id);
-    } else {
-      pairings.push({ p1, p2: null }); // BYE
-      used.add(p1.id);
     }
   }
 
