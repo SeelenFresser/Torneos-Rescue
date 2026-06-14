@@ -6,6 +6,7 @@
 // Calcula rondas necesarias: ceil(log2(n)), máx 4
 function calcTotalRounds(n) {
   if (n <= 1) return 1;
+  if (n <= 3) return 1; // Con 2-3 jugadores, 1 ronda
   return Math.min(4, Math.ceil(Math.log2(n)));
 }
 
