@@ -391,6 +391,10 @@ async function loadLeagueHistory() {
 
 // ── PLAYOFF ───────────────────────────────────────────────
 async function startLeaguePlayoff() {
+  if (tournamentPlayers.length < 4) {
+    showToast('Se necesitan al menos 4 jugadores para el playoff');
+    return;
+  }
   const sorted = [...tournamentPlayers].sort((a,b)=>(b.points-a.points)||(b.wins-a.wins));
   const top4 = sorted.slice(0, 4);
 
