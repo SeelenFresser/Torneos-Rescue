@@ -139,12 +139,22 @@ async function generateAndShowPods() {
 }
 
 function buildPods(sorted) {
+  const n = sorted.length;
   const pods = [];
-  for (let i=0; i<sorted.length; i+=4) {
-    const chunk = sorted.slice(i, Math.min(i+4,sorted.length));
-    if (pods.length>0&&chunk.length===1) pods[pods.length-1].push(chunk[0]);
-    else pods.push(chunk);
+
+  const remainder = n % 4;
+  let threePods = remainder === 0 ? 0 : remainder === 1 ? 3 : remainder === 2 ? 2 : 1;
+
+  // n<6 con sobrante: 1 pod único
+  if (n < 6 && remainder !== 0) {
+    pods.push([...sorted]);
+    return pods;
   }
+
+  const fourPods = (n - threePods * 3) / 4;
+  let idx = 0;
+  for (let i = 0; i < fourPods; i++) { pods.push(sorted.slice(idx, idx+4)); idx+=4; }
+  for (let i = 0; i < threePods; i++) { pods.push(sorted.slice(idx, idx+3)); idx+=3; }
   return pods;
 }
 
