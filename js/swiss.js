@@ -206,7 +206,21 @@ function renderSwissMatch(m, round) {
   </div>`;
 }
 
+let _generatingRound = false;
+
 async function generateSwissRound() {
+  // Evitar doble-click / doble generación
+  if (_generatingRound) { showToast('Generando ronda... espera'); return; }
+  _generatingRound = true;
+
+  try {
+    await _generateSwissRoundInternal();
+  } finally {
+    _generatingRound = false;
+  }
+}
+
+async function _generateSwissRoundInternal() {
   // Deduplicar jugadores por ID para evitar el bug de doble carga
   const seen = new Set();
   const players = tournamentPlayers.filter(p => {
