@@ -235,7 +235,8 @@ async function registerHallOfFame(tournamentId) {
   const sorted = [...players].sort((a,b)=>(b.points-a.points)||(b.wins-a.wins));
   const winner = sorted[0];
 
-  const { error } = await _supabase.from('hall_of_fame').insert({
+  // Upsert para evitar duplicados si se llama dos veces
+  const { error } = await _supabase.from('hall_of_fame').upsert({
     tournament_id:    tournamentId,
     tournament_name:  t.name,
     tournament_type:  t.type,
@@ -246,7 +247,7 @@ async function registerHallOfFame(tournamentId) {
     winner_wins:      winner.wins   || 0,
     tournament_date:  t.tournament_date || new Date().toISOString(),
     player_count:     players.length
-  });
+  }, { onConflict: 'tournament_id', ignoreDuplicates: false });
   if (error) console.error('Hall of Fame error:', error.message);
 }
 
