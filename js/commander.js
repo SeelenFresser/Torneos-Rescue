@@ -351,6 +351,11 @@ async function saveAdminCEDH(podIdx) {
 }
 
 async function confirmPod(podIdx) {
+  // Verificar que el pod no esté ya confirmado
+  const sessions = window._cmdrSessions;
+  if (sessions && sessions[podIdx] && sessions[podIdx].is_confirmed) {
+    showToast('Este pod ya fue confirmado'); return;
+  }
   const sessions = window._cmdrSessions;
   if (!sessions||!sessions[podIdx]) return;
   const s = sessions[podIdx];
