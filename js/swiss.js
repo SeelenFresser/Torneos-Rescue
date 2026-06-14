@@ -293,7 +293,8 @@ async function _generateSwissRoundInternal() {
     }
   }
 
-  // Verificar que no existan ya partidos para esta ronda
+  // Verificar atómicamente que no existan ya partidos para esta ronda
+  // Usar upsert implícito — si ya existe la ronda, el insert fallará por el unique index
   const { data: existingMatches } = await _supabase
     .from('matches')
     .select('id')
@@ -302,11 +303,29 @@ async function _generateSwissRoundInternal() {
     .eq('match_type', 'swiss');
 
   if (existingMatches && existingMatches.length > 0) {
-    showToast('Esta ronda ya fue generada');
+    // Ya fue generada por otra llamada concurrente
     await loadPlayers();
     renderSwissView();
     return;
   }
+
+  // Actualizar current_round ANTES de insertar matches
+  // Si dos llamadas llegan aquí, solo una actualizará correctamente
+  const { data: updated, error: updateErr } = await _supabase
+    .from('tournaments')
+    .update({ current_round: newRound })
+    .eq('id', currentTournament.id)
+    .eq('current_round', newRound - 1) // Solo si sigue en la ronda anterior
+    .select('id');
+
+  if (!updated || updated.length === 0) {
+    // Otra llamada ya avanzó la ronda
+    await loadPlayers();
+    renderSwissView();
+    return;
+  }
+
+  currentTournament.current_round = newRound;
 
   // Deduplicar jugadores antes de emparejar
   const uniquePlayers = [...new Map(pairings.flatMap(p => [p.p1, p.p2].filter(Boolean)).map(p => [p.id, p])).values()];
@@ -332,9 +351,6 @@ async function _generateSwissRoundInternal() {
 
   // Los puntos de BYE se dan al CONFIRMAR la ronda, no al generarla
   // (ver confirmSwissRound)
-
-  await _supabase.from('tournaments').update({ current_round: newRound }).eq('id', currentTournament.id);
-  currentTournament.current_round = newRound;
 
   await loadPlayers();
   renderSwissView();
@@ -404,18 +420,27 @@ async function _confirmSwissMatchById(matchId, s1, s2) {
     .eq('is_complete', false);
 
   if (!pending || pending.length === 0) {
+    // Verificar atómicamente que la ronda no cambió mientras procesábamos
+    // (evita doble generación si dos admins confirman simultáneamente)
+    const { data: freshT } = await _supabase
+      .from('tournaments').select('current_round').eq('id', currentTournament.id).single();
+    
+    if (!freshT || freshT.current_round !== currentTournament.current_round) {
+      // Alguien ya avanzó la ronda — no hacer nada
+      await loadPlayers();
+      renderSwissView();
+      return;
+    }
+
     // Dar puntos de BYE ahora que la ronda está completa
     await giveBYEPoints();
     await loadPlayers();
 
+    AudioFX.roundEnd();
     if (currentTournament.current_round < totalRounds) {
-      setTimeout(() => {
-        AudioFX.roundEnd();
-        showToast('✓ Ronda completa — generando siguiente...');
-        setTimeout(() => generateSwissRound(), 1200);
-      }, 400);
+      showToast('✅ Ronda completa — presiona ▶ para la siguiente');
+      renderSwissView();
     } else {
-      AudioFX.roundEnd();
       showToast('🏆 ¡Todas las rondas completadas!');
       renderSwissView();
       setTimeout(() => showWinnerPopup(tournamentPlayers), 800);
