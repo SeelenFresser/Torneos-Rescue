@@ -323,22 +323,15 @@ async function _generateSwissRoundInternal() {
     is_complete: !pair.p2,
     winner_id: !pair.p2 ? pair.p1.id : null,
     score_p1: !pair.p2 ? 2 : null,
-    score_p2: !pair.p2 ? 0 : null
+    score_p2: !pair.p2 ? 0 : null,
+    bye_points_given: false
   }));
 
   const { error } = await _supabase.from('matches').insert(inserts);
   if (error) { showToast('Error: ' + error.message); return; }
 
-  // Dar puntos por BYE
-  for (const pair of pairings) {
-    if (!pair.p2) {
-      await _supabase.from('players').update({
-        wins: (pair.p1.wins || 0) + 1,
-        points: (pair.p1.points || 0) + 3,
-        game_wins: (pair.p1.game_wins || 0) + 2
-      }).eq('id', pair.p1.id);
-    }
-  }
+  // Los puntos de BYE se dan al CONFIRMAR la ronda, no al generarla
+  // (ver confirmSwissRound)
 
   await _supabase.from('tournaments').update({ current_round: newRound }).eq('id', currentTournament.id);
   currentTournament.current_round = newRound;
@@ -410,20 +403,48 @@ async function _confirmSwissMatchById(matchId, s1, s2) {
     .eq('round', currentTournament.current_round)
     .eq('is_complete', false);
 
-  if ((!pending || pending.length === 0) && currentTournament.current_round < totalRounds) {
-    setTimeout(() => {
+  if (!pending || pending.length === 0) {
+    // Dar puntos de BYE ahora que la ronda está completa
+    await giveBYEPoints();
+    await loadPlayers();
+
+    if (currentTournament.current_round < totalRounds) {
+      setTimeout(() => {
+        AudioFX.roundEnd();
+        showToast('✓ Ronda completa — generando siguiente...');
+        setTimeout(() => generateSwissRound(), 1200);
+      }, 400);
+    } else {
       AudioFX.roundEnd();
-    showToast('✓ Ronda completa — generando siguiente...');
-      setTimeout(() => generateSwissRound(), 1200);
-    }, 400);
-  } else if (!pending || pending.length === 0) {
-    AudioFX.roundEnd();
-    showToast('🏆 ¡Todas las rondas completadas!');
-    renderSwissView();
-    setTimeout(() => showWinnerPopup(tournamentPlayers), 800);
+      showToast('🏆 ¡Todas las rondas completadas!');
+      renderSwissView();
+      setTimeout(() => showWinnerPopup(tournamentPlayers), 800);
+    }
   } else {
     AudioFX.tap();
     showToast('Resultado guardado ✓');
+  }
+}
+
+async function giveBYEPoints() {
+  // Buscar matches BYE de la ronda actual que aún no tienen puntos dados
+  const { data: byeMatches } = await _supabase
+    .from('matches').select('*')
+    .eq('tournament_id', currentTournament.id)
+    .eq('round', currentTournament.current_round)
+    .eq('match_type', 'swiss')
+    .is('player2_id', null)
+    .eq('bye_points_given', false);
+
+  for (const m of (byeMatches || [])) {
+    const p = tournamentPlayers.find(p => p.id === m.player1_id);
+    if (!p) continue;
+    await _supabase.from('players').update({
+      wins:      (p.wins      || 0) + 1,
+      points:    (p.points    || 0) + 3,
+      game_wins: (p.game_wins || 0) + 2
+    }).eq('id', p.id);
+    await _supabase.from('matches').update({ bye_points_given: true }).eq('id', m.id);
   }
 }
 
