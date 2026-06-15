@@ -389,6 +389,46 @@
   </div>
 </div>
 
+<!-- MODAL: Inscribirse en torneo 2v2 -->
+<div id="modal-2v2-register" class="modal-overlay" style="display:none" onclick="closeModal('modal-2v2-register')">
+  <div class="modal-box" onclick="event.stopPropagation()" style="max-width:360px">
+    <div class="modal-header">
+      <h3>✋ Inscribirme</h3>
+      <button class="btn btn-ghost btn-sm" onclick="closeModal('modal-2v2-register')">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="2v2-reg-tournament-id">
+      <label class="label">Tu nombre</label>
+      <input class="input" id="2v2-reg-name" type="text" placeholder="Tu nombre de jugador">
+      <label class="label">Tu comandante (opcional)</label>
+      <input class="input" id="2v2-reg-cmdr" type="text" placeholder="Ej: Yuriko, the Tiger's Shadow">
+      <p style="font-size:12px;color:var(--muted);margin-top:8px">
+        El admin formará los equipos antes de iniciar el torneo.
+      </p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-2v2-register')">Cancelar</button>
+      <button class="btn btn-primary" onclick="register2v2Player()">✋ Inscribirme</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Formar equipos manualmente -->
+<div id="modal-2v2-manual-teams" class="modal-overlay" style="display:none" onclick="closeModal('modal-2v2-manual-teams')">
+  <div class="modal-box" onclick="event.stopPropagation()" style="max-width:400px">
+    <div class="modal-header">
+      <h3>✋ Formar equipos</h3>
+      <button class="btn btn-ghost btn-sm" onclick="closeModal('modal-2v2-manual-teams')">✕</button>
+    </div>
+    <div class="modal-body" id="manual-team-builder">
+      <div class="empty-state">Cargando...</div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-2v2-manual-teams');window._manualTeams=null">Cancelar</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL: Agregar equipo 2v2 -->
 <div id="modal-2v2-add-team" class="modal-overlay" style="display:none" onclick="closeModal('modal-2v2-add-team')">
   <div class="modal-box" onclick="event.stopPropagation()" style="max-width:380px">
