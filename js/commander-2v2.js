@@ -188,58 +188,248 @@ function render2v2Tab(tab) {
 }
 
 // ── TAB EQUIPOS ───────────────────────────────
-function render2v2Teams(el) {
+async function render2v2Teams(el) {
   const isAdmin = is2v2Admin();
   const t = c2v2Tournament;
 
+  // Cargar jugadores inscritos
+  const { data: players } = await _supabase
+    .from('commander_2v2_players').select('*')
+    .eq('tournament_id', t.id)
+    .order('created_at', { ascending: true });
+
+  const unassigned = (players||[]).filter(p => !p.team_id);
+
   el.innerHTML = `
-    ${isAdmin && t.status === 'upcoming' ? `
-    <div style="display:grid;gap:8px;margin-bottom:16px">
-      <button class="btn btn-primary" onclick="open2v2AddTeamModal()">
-        + Agregar equipo manualmente
-      </button>
-      ${c2v2Teams.length >= 2 ? `
-      <button class="btn" style="border-color:var(--magic);color:var(--magic)"
-        onclick="randomize2v2Teams()">
-        🎲 Generar equipos al azar
-      </button>
-      <button class="btn btn-primary" style="background:var(--green)"
-        onclick="start2v2Tournament()">
-        ▶ Iniciar torneo
-      </button>` : ''}
+    <!-- INSCRIPCIÓN (jugadores) -->
+    ${t.status === 'upcoming' ? `
+    <button class="btn w-full" style="border-color:var(--std);color:var(--std);margin-bottom:12px"
+      onclick="open2v2RegisterModal('${t.id}')">
+      ✋ Inscribirme en este torneo
+    </button>` : ''}
+
+    <!-- JUGADORES INSCRITOS SIN EQUIPO (admin) -->
+    ${isAdmin && unassigned.length > 0 ? `
+    <div style="background:var(--dark2);border:1px solid var(--border);border-radius:12px;
+      padding:12px 14px;margin-bottom:12px">
+      <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;
+        letter-spacing:1px;margin-bottom:8px">
+        📋 Inscritos sin equipo (${unassigned.length})
+      </div>
+      ${unassigned.map(p => `
+        <div style="display:flex;align-items:center;gap:8px;padding:6px 0;
+          border-bottom:1px solid var(--border)">
+          <div style="flex:1">
+            <div style="font-size:13px;font-weight:700">${escHtml(p.player_name)}</div>
+            ${p.commander?`<div style="font-size:11px;color:var(--muted)">${escHtml(p.commander)}</div>`:''}
+          </div>
+          <button class="btn btn-xs btn-danger" onclick="remove2v2Player('${p.id}')">✕</button>
+        </div>`).join('')}
+
+      <!-- BOTONES DE FORMACIÓN DE EQUIPOS -->
+      ${unassigned.length >= 2 ? `
+      <div style="display:grid;gap:6px;margin-top:10px">
+        <button class="btn btn-primary" onclick="randomize2v2Teams()">
+          🎲 Formar equipos al azar
+        </button>
+        <button class="btn" style="border-color:var(--magic);color:var(--magic)"
+          onclick="openManualTeamBuilder()">
+          ✋ Formar equipos manualmente
+        </button>
+      </div>` : `
+      <p style="font-size:12px;color:var(--muted);margin-top:8px">
+        Necesitas al menos 2 jugadores para formar equipos.
+      </p>`}
     </div>` : ''}
 
+    <!-- EQUIPOS FORMADOS -->
+    ${isAdmin && t.status === 'upcoming' && c2v2Teams.length >= 2 ? `
+    <button class="btn btn-primary w-full" style="margin-bottom:12px;background:var(--green)"
+      onclick="start2v2Tournament()">
+      ▶ Iniciar torneo (${c2v2Teams.length} equipos)
+    </button>` : ''}
+
     ${c2v2Teams.length ? `
+    <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;
+      letter-spacing:1px;margin-bottom:8px">Equipos formados (${c2v2Teams.length})</div>
     <div style="display:grid;gap:8px">
       ${c2v2Teams.map((team, i) => {
         const c = TEAM_COLORS[i % TEAM_COLORS.length];
         return `<div style="background:${c.bg};border:1px solid ${c.accent}44;
           border-radius:12px;padding:12px 14px">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
-            <div style="font-size:14px;font-weight:800;color:${c.accent}">
-              ${escHtml(team.team_name)}
-            </div>
+            <input style="background:transparent;border:none;border-bottom:1px solid ${c.accent}40;
+              color:${c.accent};font-size:14px;font-weight:800;outline:none;width:140px"
+              value="${escHtml(team.team_name)}"
+              onchange="rename2v2Team('${team.id}',this.value)">
             ${isAdmin && t.status==='upcoming'?`
             <button class="btn btn-xs btn-danger" onclick="remove2v2Team('${team.id}')">✕</button>`:''}
           </div>
-          <div style="display:flex;gap:8px;font-size:13px;color:#fff">
+          <div style="display:flex;gap:8px;font-size:13px;color:#fff;align-items:center">
             <span>🧙 ${escHtml(team.player1_name)}</span>
-            <span style="color:${c.accent}">+</span>
+            <span style="color:${c.accent};font-weight:700">+</span>
             <span>🧙 ${escHtml(team.player2_name)}</span>
           </div>
           ${team.commander1||team.commander2?`
-          <div style="display:flex;gap:8px;font-size:11px;color:${c.accent}88;margin-top:4px">
-            ${team.commander1?`<span>${escHtml(team.commander1)}</span>`:''}
-            ${team.commander2?`<span>+ ${escHtml(team.commander2)}</span>`:''}
+          <div style="font-size:11px;color:${c.accent}80;margin-top:4px">
+            ${team.commander1?escHtml(team.commander1):'?'} + ${team.commander2?escHtml(team.commander2):'?'}
           </div>`:''}
         </div>`;
       }).join('')}
-    </div>` : `
+    </div>` : !unassigned.length ? `
     <div class="empty-state" style="padding:24px">
       <div style="font-size:32px;margin-bottom:8px">👥</div>
-      <p>Sin equipos aún. Agrega equipos para comenzar.</p>
-    </div>`}
+      <p>Sin jugadores inscritos aún.</p>
+    </div>` : ''}
   `;
+}
+
+async function remove2v2Player(playerId) {
+  await _supabase.from('commander_2v2_players').delete().eq('id', playerId);
+  AudioFX.tap();
+  const el = document.getElementById('c2v2-tab-content');
+  if (el) await render2v2Teams(el);
+}
+
+async function rename2v2Team(teamId, newName) {
+  await _supabase.from('commander_2v2_teams').update({ team_name: newName }).eq('id', teamId);
+}
+
+// ── FORMAR EQUIPOS MANUALMENTE ────────────────
+function openManualTeamBuilder() {
+  openModal('modal-2v2-manual-teams');
+  renderManualTeamBuilder();
+}
+
+async function renderManualTeamBuilder() {
+  const { data: players } = await _supabase
+    .from('commander_2v2_players').select('*')
+    .eq('tournament_id', c2v2Tournament.id)
+    .is('team_id', null)
+    .order('created_at');
+
+  const el = document.getElementById('manual-team-builder');
+  if (!el) return;
+
+  // Estado temporal de equipos manuales
+  if (!window._manualTeams) window._manualTeams = [];
+  if (!window._unassignedPlayers) window._unassignedPlayers = [...(players||[])];
+
+  el.innerHTML = `
+    <div style="margin-bottom:12px">
+      <div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:6px">
+        Jugadores disponibles
+      </div>
+      ${window._unassignedPlayers.map(p => `
+        <div style="display:flex;align-items:center;gap:8px;padding:5px 0;
+          border-bottom:1px solid var(--border)">
+          <div style="flex:1;font-size:13px">${escHtml(p.player_name)}</div>
+          <select class="input" id="assign-${p.id}"
+            style="font-size:12px;padding:4px 8px;width:auto">
+            <option value="">Sin equipo</option>
+            ${window._manualTeams.map((t,i)=>`<option value="${i}">Equipo ${i+1}</option>`).join('')}
+            <option value="new">+ Nuevo equipo</option>
+          </select>
+          <button class="btn btn-xs btn-primary" onclick="assignPlayerToTeam('${p.id}','${escHtml(p.player_name)}','${escHtml(p.commander||'')}')">OK</button>
+        </div>`).join('')}
+    </div>
+
+    ${window._manualTeams.length ? `
+    <div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:6px">
+      Equipos formados
+    </div>
+    ${window._manualTeams.map((team,i)=>`
+      <div style="background:var(--dark3);border-radius:8px;padding:8px;margin-bottom:6px">
+        <div style="font-size:12px;font-weight:700;color:var(--magic)">Equipo ${i+1}</div>
+        ${team.map(p=>`<div style="font-size:12px;color:var(--text)">🧙 ${escHtml(p.name)}</div>`).join('')}
+      </div>`).join('')}
+
+    ${window._manualTeams.every(t=>t.length===2) && window._unassignedPlayers.length===0 ? `
+    <button class="btn btn-primary w-full" onclick="confirmManualTeams()">
+      ✓ Confirmar equipos
+    </button>` : ''}` : ''}
+  `;
+}
+
+function assignPlayerToTeam(playerId, playerName, commander) {
+  const sel = document.getElementById(`assign-${playerId}`);
+  const val = sel?.value;
+  if (!val) return;
+
+  const player = { id: playerId, name: playerName, commander };
+
+  if (val === 'new') {
+    window._manualTeams.push([player]);
+  } else {
+    const idx = parseInt(val);
+    if (window._manualTeams[idx].length >= 2) {
+      showToast('Ese equipo ya tiene 2 jugadores'); return;
+    }
+    window._manualTeams[idx].push(player);
+  }
+
+  window._unassignedPlayers = window._unassignedPlayers.filter(p=>p.id!==playerId);
+  renderManualTeamBuilder();
+}
+
+async function confirmManualTeams() {
+  const inserts = window._manualTeams.map((team, i) => ({
+    tournament_id: c2v2Tournament.id,
+    team_name: TEAM_COLORS[i % TEAM_COLORS.length].name,
+    player1_name: team[0].name, commander1: team[0].commander||null,
+    player2_name: team[1].name, commander2: team[1].commander||null,
+    wins: 0, losses: 0, draws: 0, points: 0
+  }));
+
+  await _supabase.from('commander_2v2_teams').insert(inserts);
+  await _supabase.from('commander_2v2_tournaments').update({ team_count: inserts.length })
+    .eq('id', c2v2Tournament.id);
+
+  window._manualTeams = null;
+  window._unassignedPlayers = null;
+  closeModal('modal-2v2-manual-teams');
+  AudioFX.roundStart();
+  showToast(`✓ ${inserts.length} equipos formados`);
+  await load2v2Detail();
+}
+
+// ── INSCRIPCIÓN DE JUGADORES ─────────────────
+async function open2v2RegisterModal(tournamentId) {
+  document.getElementById('2v2-reg-tournament-id').value = tournamentId;
+  document.getElementById('2v2-reg-name').value = '';
+  document.getElementById('2v2-reg-cmdr').value = '';
+  openModal('modal-2v2-register');
+}
+
+async function register2v2Player() {
+  const tournamentId = document.getElementById('2v2-reg-tournament-id')?.value;
+  const playerName   = document.getElementById('2v2-reg-name')?.value?.trim();
+  const commander    = document.getElementById('2v2-reg-cmdr')?.value?.trim();
+
+  if (!playerName) { showToast('Escribe tu nombre'); return; }
+
+  // Verificar si ya está inscrito
+  const { data: existing } = await _supabase
+    .from('commander_2v2_players')
+    .select('id').eq('tournament_id', tournamentId)
+    .eq('player_name', playerName).single();
+
+  if (existing) { showToast('Ya estás inscrito en este torneo'); closeModal('modal-2v2-register'); return; }
+
+  const { error } = await _supabase.from('commander_2v2_players').insert({
+    tournament_id: tournamentId,
+    player_name: playerName,
+    commander: commander || null,
+    user_id: currentUser?.id || null
+  });
+
+  if (error) { showToast('Error: '+error.message); return; }
+
+  closeModal('modal-2v2-register');
+  AudioFX.tap();
+  showToast(`✓ ${playerName} inscrito`);
+  await load2v2Detail();
+  switch2v2Tab('equipos');
 }
 
 // ── MODAL AGREGAR EQUIPO ──────────────────────
@@ -289,38 +479,42 @@ async function remove2v2Team(teamId) {
 
 // ── EQUIPOS AL AZAR ───────────────────────────
 async function randomize2v2Teams() {
-  // Obtener todos los jugadores individuales registrados
-  const players = [];
-  c2v2Teams.forEach(t => {
-    players.push(t.player1_name, t.player2_name);
-  });
+  const { data: players } = await _supabase
+    .from('commander_2v2_players').select('*')
+    .eq('tournament_id', c2v2Tournament.id);
 
-  if (players.length < 4 || players.length % 2 !== 0) {
-    showToast('Necesitas un número par de jugadores'); return;
+  if (!players?.length || players.length < 4) {
+    showToast('Necesitas al menos 4 jugadores inscritos'); return;
   }
-
-  if (!confirm(`¿Reorganizar ${players.length} jugadores en ${players.length/2} equipos aleatorios?`)) return;
-
-  // Mezclar y emparejar
-  const shuffled = players.sort(() => Math.random() - 0.5);
-  const newTeams = [];
-  for (let i = 0; i < shuffled.length; i += 2) {
-    newTeams.push({ p1: shuffled[i], p2: shuffled[i+1] });
+  if (players.length % 2 !== 0) {
+    showToast(`Hay ${players.length} jugadores — necesitas un número par`); return;
   }
+  if (!confirm(`¿Formar ${players.length/2} equipos al azar con ${players.length} jugadores?`)) return;
 
-  // Borrar equipos actuales y recrear
+  // Borrar equipos anteriores
   await _supabase.from('commander_2v2_teams').delete().eq('tournament_id', c2v2Tournament.id);
 
-  const inserts = newTeams.map((pair, i) => ({
-    tournament_id: c2v2Tournament.id,
-    team_name: TEAM_COLORS[i % TEAM_COLORS.length].name,
-    player1_name: pair.p1, player2_name: pair.p2,
-    wins: 0, losses: 0, draws: 0, points: 0
-  }));
+  // Mezclar y emparejar
+  const shuffled = [...players].sort(() => Math.random() - 0.5);
+  const inserts = [];
+  for (let i = 0; i < shuffled.length; i += 2) {
+    inserts.push({
+      tournament_id: c2v2Tournament.id,
+      team_name: TEAM_COLORS[(i/2) % TEAM_COLORS.length].name,
+      player1_name: shuffled[i].player_name,
+      commander1: shuffled[i].commander||null,
+      player2_name: shuffled[i+1].player_name,
+      commander2: shuffled[i+1].commander||null,
+      wins: 0, losses: 0, draws: 0, points: 0
+    });
+  }
 
   await _supabase.from('commander_2v2_teams').insert(inserts);
+  await _supabase.from('commander_2v2_tournaments').update({ team_count: inserts.length })
+    .eq('id', c2v2Tournament.id);
+
   AudioFX.roundStart();
-  showToast('🎲 Equipos reorganizados al azar');
+  showToast(`🎲 ${inserts.length} equipos formados al azar`);
   await load2v2Detail();
 }
 
