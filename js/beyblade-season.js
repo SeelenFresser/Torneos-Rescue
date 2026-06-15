@@ -311,12 +311,14 @@ function renderSeasonStandings(el) {
 function renderSeasonRounds(el) {
   const isAdmin = isSeasonAdmin();
   const s = currentSeason;
+  const nextWeek = (s.current_week||0) + 1;
+  const allDone = seasonRounds.length >= s.total_weeks;
 
   el.innerHTML = `
-    ${isAdmin && s.status === 'active' ? `
+    ${isAdmin && s.status === 'active' && !allDone ? `
     <button class="btn btn-primary w-full" style="margin-bottom:14px"
-      onclick="openLinkTournamentModal()">
-      + Vincular torneo de esta semana
+      onclick="openCreateRoundModal()">
+      📅 + Crear Fecha ${nextWeek}
     </button>` : ''}
 
     ${seasonRounds.length ? `
@@ -332,16 +334,23 @@ function renderSeasonRounds(el) {
                 Fecha ${r.week_number} — ${escHtml(t?.name||'Torneo')}
               </div>
               <div style="font-size:11px;color:${statusColor};margin-top:2px">
-                ${t?.status==='finished'?'✓ Completada':'En curso'}
+                ${t?.status==='finished'?'✓ Completada':'⚡ En curso'}
               </div>
             </div>
-            ${r.points_distributed ? `
-              <span style="font-size:11px;color:var(--green);font-weight:700">
-                ✓ Puntos F1 dados
-              </span>` : isAdmin && t?.status==='finished' ? `
-              <button class="btn btn-sm btn-primary" onclick="distributeF1Points('${r.id}','${r.tournament_id}','${r.week_number}')">
-                🏎 Dar puntos F1
-              </button>` : ''}
+            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
+              ${r.points_distributed ? `
+                <span style="font-size:11px;color:var(--green);font-weight:700">✓ Puntos F1 dados</span>` :
+              isAdmin && t?.status==='finished' ? `
+                <button class="btn btn-sm btn-primary"
+                  onclick="distributeF1Points('${r.id}','${r.tournament_id}','${r.week_number}')">
+                  🏎 Dar puntos F1
+                </button>` : ''}
+              ${isAdmin && t?.status !== 'finished' ? `
+                <button class="btn btn-sm" style="border-color:var(--std);color:var(--std)"
+                  onclick="goToSeasonTournament('${r.tournament_id}')">
+                  ▶ Ir al torneo
+                </button>` : ''}
+            </div>
           </div>
           ${r.results_snapshot ? renderRoundSnapshot(r.results_snapshot) : ''}
         </div>`;
@@ -349,9 +358,74 @@ function renderSeasonRounds(el) {
     </div>` : `
     <div class="empty-state" style="padding:24px">
       <div style="font-size:32px;margin-bottom:8px">📅</div>
-      <p>No hay fechas registradas aún.</p>
+      <p>No hay fechas aún.<br>Crea la primera fecha para comenzar.</p>
     </div>`}
   `;
+}
+
+function goToSeasonTournament(tournamentId) {
+  // Ir directamente al torneo vinculado
+  openTournament(tournamentId);
+}
+
+async function openCreateRoundModal() {
+  const nextWeek = (currentSeason.current_week||0) + 1;
+  document.getElementById('round-modal-title').textContent = `Fecha ${nextWeek} — ${escHtml(currentSeason.name)}`;
+  document.getElementById('round-tournament-name').value = `${currentSeason.name} · Fecha ${nextWeek}`;
+  document.getElementById('round-date').value = new Date().toISOString().slice(0,10);
+  openModal('modal-create-round');
+}
+
+async function createSeasonRound() {
+  const name = document.getElementById('round-tournament-name')?.value?.trim();
+  const date = document.getElementById('round-date')?.value;
+  const nextWeek = (currentSeason.current_week||0) + 1;
+
+  if (!name) { showToast('Escribe un nombre para el torneo'); return; }
+
+  // Crear torneo Beyblade Swiss directamente
+  const { data: tournament, error } = await _supabase.from('tournaments').insert({
+    name,
+    type: 'beyblade',
+    format: 'swiss',
+    owner_id: currentUser.id,
+    status: 'upcoming',
+    current_round: 0,
+    total_rounds: 4,
+    tournament_date: date ? new Date(date).toISOString() : new Date().toISOString(),
+    points_system: 'beyblade'
+  }).select().single();
+
+  if (error) { showToast('Error: '+error.message); return; }
+
+  // Vincular a la temporada
+  await _supabase.from('beyblade_season_rounds').insert({
+    season_id: currentSeason.id,
+    tournament_id: tournament.id,
+    week_number: nextWeek,
+    points_distributed: false
+  });
+
+  // Actualizar semana actual y status
+  await _supabase.from('beyblade_seasons').update({
+    current_week: nextWeek,
+    status: 'active'
+  }).eq('id', currentSeason.id);
+  currentSeason.current_week = nextWeek;
+  currentSeason.status = 'active';
+
+  closeModal('modal-create-round');
+  AudioFX.roundStart();
+  showToast(`📅 Fecha ${nextWeek} creada ✓`);
+  await loadSeasonDetail();
+  switchSeasonTab('rounds');
+
+  // Preguntar si quiere ir al torneo ahora
+  setTimeout(() => {
+    if (confirm('¿Ir al torneo ahora para agregar jugadores?')) {
+      goToSeasonTournament(tournament.id);
+    }
+  }, 500);
 }
 
 function renderRoundSnapshot(snapshotJson) {
@@ -368,64 +442,7 @@ function renderRoundSnapshot(snapshotJson) {
   } catch(e) { return ''; }
 }
 
-// ── VINCULAR TORNEO ───────────────────────────
-async function openLinkTournamentModal() {
-  // Buscar torneos Beyblade finalizados o activos sin temporada asignada
-  const { data: tournaments } = await _supabase
-    .from('tournaments')
-    .select('id,name,status,tournament_date')
-    .eq('type', 'beyblade')
-    .in('status', ['active','finished'])
-    .order('created_at', { ascending: false })
-    .limit(20);
 
-  // Filtrar los que ya están vinculados a esta temporada
-  const linked = new Set(seasonRounds.map(r => r.tournament_id));
-  const available = (tournaments||[]).filter(t => !linked.has(t.id));
-
-  const list = document.getElementById('link-tournament-list');
-  if (list) {
-    list.innerHTML = available.length ? available.map(t => `
-      <div style="display:flex;align-items:center;gap:10px;padding:8px 0;
-        border-bottom:1px solid var(--border)">
-        <div style="flex:1">
-          <div style="font-size:13px;font-weight:700">${escHtml(t.name)}</div>
-          <div style="font-size:11px;color:var(--muted)">${t.status==='finished'?'✓ Finalizado':'En curso'}</div>
-        </div>
-        <button class="btn btn-sm btn-primary" onclick="linkTournamentToSeason('${t.id}')">
-          Vincular
-        </button>
-      </div>`).join('') :
-      '<div class="empty-state" style="padding:12px">No hay torneos disponibles</div>';
-  }
-  openModal('modal-link-tournament');
-}
-
-async function linkTournamentToSeason(tournamentId) {
-  const nextWeek = (currentSeason.current_week||0) + 1;
-
-  const { error } = await _supabase.from('beyblade_season_rounds').insert({
-    season_id: currentSeason.id,
-    tournament_id: tournamentId,
-    week_number: nextWeek,
-    points_distributed: false
-  });
-
-  if (error) { showToast('Error: '+error.message); return; }
-
-  // Actualizar semana actual
-  await _supabase.from('beyblade_seasons').update({
-    current_week: nextWeek, status: 'active'
-  }).eq('id', currentSeason.id);
-  currentSeason.current_week = nextWeek;
-  currentSeason.status = 'active';
-
-  closeModal('modal-link-tournament');
-  AudioFX.tap();
-  showToast(`Fecha ${nextWeek} vinculada ✓`);
-  await loadSeasonDetail();
-  switchSeasonTab('rounds');
-}
 
 // ── DISTRIBUIR PUNTOS F1 ──────────────────────
 async function distributeF1Points(roundId, tournamentId, weekNumber) {
