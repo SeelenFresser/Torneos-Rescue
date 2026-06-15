@@ -635,18 +635,25 @@ function generateSwissPairings2v2(teams, matches) {
 }
 
 function generateRoundRobinPairings2v2(teams, currentRound) {
+  // Algoritmo de rotación estándar (Berger tables)
+  // Fijar primer elemento, rotar el resto
   const ids = [...teams];
-  if (ids.length % 2 !== 0) ids.push(null); // BYE
+  if (ids.length % 2 !== 0) ids.push(null); // BYE ficticio
   const n = ids.length;
-  const r = (currentRound - 1) % (n - 1);
+  const numRounds = n - 1;
+  const r = ((currentRound - 1) % numRounds + numRounds) % numRounds;
 
-  const rotated = [ids[0], ...ids.slice(1).slice(-(n-1) + r).concat(ids.slice(1).slice(0, -(n-1) + r))];
+  // Rotar: mantener ids[0] fijo, rotar ids[1..n-1]
+  const rest = ids.slice(1);
+  const rotated = [ids[0], ...rest.slice(rest.length - r).concat(rest.slice(0, rest.length - r))];
+
   const pairings = [];
   for (let i = 0; i < n/2; i++) {
     const t1 = rotated[i];
     const t2 = rotated[n-1-i];
-    if (t1 && t2) pairings.push({t1,t2});
-    else if (t1) pairings.push({t1, t2: null});
+    if (t1 && t2) pairings.push({t1, t2});
+    else if (t1 && !t2) pairings.push({t1, t2: null}); // BYE
+    else if (!t1 && t2) pairings.push({t1: t2, t2: null}); // BYE
   }
   return pairings;
 }
