@@ -175,6 +175,36 @@
 </div>
 
 <!-- ===================== GAME APP (player view) ===================== -->
+<!-- BEYBLADE SEASON screen -->
+<div id="screen-season" class="screen">
+  <div class="navbar">
+    <div class="nav-logo">
+      <img src="img/logo.png" alt="Rescue TCG">
+      <span class="nav-logo-text" style="color:var(--gold)">🏎 Liga Beyblade</span>
+    </div>
+    <button class="btn btn-ghost btn-sm" onclick="goToDashboard()">← Volver</button>
+  </div>
+  <div style="padding:16px;max-width:560px;margin:0 auto;overflow-y:auto;height:calc(100vh - 56px)">
+    <div id="season-content">
+      <div class="empty-state"><div class="spinner"></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- BEYBLADE SEASON DETAIL screen -->
+<div id="screen-season-detail" class="screen">
+  <div class="navbar">
+    <button class="btn btn-ghost btn-sm" onclick="showScreen('screen-season');loadSeasonScreen()">← Temporadas</button>
+    <div class="nav-logo-text" id="season-detail-title" style="color:var(--bey);font-weight:800"></div>
+    <div style="width:60px"></div>
+  </div>
+  <div style="padding:16px;max-width:560px;margin:0 auto;overflow-y:auto;height:calc(100vh - 56px)">
+    <div id="season-detail-content">
+      <div class="empty-state"><div class="spinner"></div></div>
+    </div>
+  </div>
+</div>
+
 <div id="screen-game" class="screen game-app">
   <nav class="navbar">
     <button class="btn btn-ghost btn-sm" onclick="leaveGame()">← Salir</button>
