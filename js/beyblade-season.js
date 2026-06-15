@@ -649,7 +649,8 @@ async function renderSeasonPlayoff(el) {
           ${roundMatches.sort((a,b)=>a.match_number-b.match_number).map(m =>
             renderPlayoffMatchCard(m, isAdmin, formatLabels)
           ).join('')}
-          ${isAdmin && allDone && roundKeys[roundKeys.indexOf(rn)+1] === undefined ?
+          ${isAdmin && allDone && roundKeys[roundKeys.indexOf(rn)+1] === undefined &&
+            !rounds[rn].some(m => m.is_final || m.is_third_place) ?
             renderNextRoundButton(rn, rounds, spots) : ''}
         </div>`;
       }).join('')}
