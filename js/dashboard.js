@@ -136,6 +136,10 @@ async function loadDashboard() {
       style="border-color:var(--bey);color:var(--bey);font-weight:700">
       🌀 Beyblade — Partida amistosa
     </button>
+    <button class="btn" onclick="openSeasonScreen()"
+      style="border-color:var(--gold);color:var(--gold);font-weight:700">
+      🏎 Liga Beyblade F1
+    </button>
     <button class="btn" onclick="openFreeSpinner()"
       style="border-color:var(--bey);color:var(--bey)">
       🎲 Dados & Ruleta
