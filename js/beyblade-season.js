@@ -282,9 +282,14 @@ function renderSeasonStandings(el) {
     <!-- BOTONES ADMIN -->
     ${isAdmin ? `
     <div style="display:grid;gap:8px">
-      ${s.status === 'active' && s.current_week >= 1 ? `
-      <button class="btn btn-primary" onclick="cutToPlayoff()">
+      ${s.status === 'active' && s.current_week >= s.total_weeks ? `
+      <button class="btn btn-primary" onclick="cutToPlayoff()"
+        style="background:linear-gradient(135deg,var(--bey),var(--gold))">
         ⚔️ Cortar al Playoff (Top ${playoffSpots})
+      </button>` : s.status === 'active' && s.current_week >= 1 ? `
+      <button class="btn" style="border-color:var(--muted);color:var(--muted);font-size:12px"
+        onclick="if(confirm('¿Cortar la temporada antes de terminar todas las fechas?'))cutToPlayoff()">
+        ⚔️ Corte anticipado al Playoff
       </button>` : ''}
       ${s.status === 'upcoming' ? `
       <button class="btn btn-primary" onclick="startSeason()">
