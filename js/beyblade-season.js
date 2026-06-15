@@ -725,8 +725,109 @@ async function confirmPlayoffSeasonMatch(matchId, p1Name, p2Name, format) {
   if (error) { showToast('Error: '+error.message); return; }
 
   AudioFX.roundEnd();
-  showToast(`✓ ${winnerName} avanza`);
+
+  // Verificar si era la final
+  const { data: match } = await _supabase
+    .from('beyblade_playoffs').select('*').eq('id', matchId).single();
+
+  if (match?.is_final) {
+    // ¡Campeón de la temporada!
+    await finishSeason(winnerName, match);
+  } else {
+    showToast(`✓ ${winnerName} avanza`);
+  }
+
   await renderSeasonPlayoff(document.getElementById('season-tab-content'));
+}
+
+async function finishSeason(championName, finalMatch) {
+  // Actualizar temporada como finalizada
+  await _supabase.from('beyblade_seasons').update({
+    status: 'finished',
+    champion_name: championName
+  }).eq('id', currentSeason.id);
+  currentSeason.status = 'finished';
+  currentSeason.champion_name = championName;
+
+  // Registrar campeón en Hall of Fame
+  await _supabase.from('hall_of_fame').insert({
+    tournament_name: `${currentSeason.name} — Campeón de Temporada`,
+    tournament_type: 'beyblade',
+    tournament_format: 'season_champion',
+    winner_name: championName,
+    winner_points: seasonStandings.find(p=>p.player_name===championName)?.season_points || 0,
+    tournament_date: new Date().toISOString(),
+    player_count: seasonStandings.length
+  });
+
+  // Obtener 3er lugar
+  const thirdMatch = await _supabase.from('beyblade_playoffs')
+    .select('*').eq('season_id', currentSeason.id)
+    .eq('is_third_place', true).single();
+  const thirdPlace = thirdMatch.data?.winner_name;
+  const secondPlace = finalMatch.player1_name === championName
+    ? finalMatch.player2_name : finalMatch.player1_name;
+
+  // Mostrar popup de campeón
+  showSeasonChampion(championName, secondPlace, thirdPlace);
+}
+
+function showSeasonChampion(champion, second, third) {
+  AudioFX.victory();
+
+  const overlay = document.createElement('div');
+  overlay.id = 'season-champion-overlay';
+  overlay.style.cssText = `position:fixed;inset:0;background:rgba(0,0,0,0.95);
+    display:flex;align-items:center;justify-content:center;
+    z-index:9999;padding:20px;backdrop-filter:blur(8px)`;
+
+  overlay.innerHTML = `
+    <div style="background:#1A0010;border:2px solid var(--gold);border-radius:20px;
+      padding:32px 24px;text-align:center;max-width:420px;width:100%;
+      box-shadow:0 0 80px rgba(245,208,96,0.5)">
+
+      <div style="font-size:16px;color:var(--bey);font-weight:700;text-transform:uppercase;
+        letter-spacing:2px;margin-bottom:8px">🏎 Campeón de Temporada</div>
+      <div style="font-size:14px;color:var(--muted);margin-bottom:20px">
+        ${escHtml(currentSeason.name)}
+      </div>
+
+      <div style="font-size:56px;margin-bottom:8px">🏆</div>
+      <div style="font-size:36px;font-weight:900;color:var(--gold);margin-bottom:4px">
+        👑 ${escHtml(champion)}
+      </div>
+
+      <hr style="border-color:var(--border);margin:20px 0">
+
+      <div style="display:grid;gap:8px;margin-bottom:20px">
+        <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;
+          background:rgba(245,208,96,0.1);border:1px solid var(--gold);border-radius:10px">
+          <span style="font-size:24px">👑</span>
+          <span style="flex:1;font-weight:800;color:var(--gold);font-size:15px">${escHtml(champion)}</span>
+          <span style="font-size:12px;color:var(--gold)">Campeón</span>
+        </div>
+        ${second ? `<div style="display:flex;align-items:center;gap:10px;padding:8px 14px;
+          background:var(--dark2);border-radius:10px">
+          <span style="font-size:20px">🥈</span>
+          <span style="flex:1;font-size:14px">${escHtml(second)}</span>
+          <span style="font-size:12px;color:var(--muted)">2° lugar</span>
+        </div>` : ''}
+        ${third ? `<div style="display:flex;align-items:center;gap:10px;padding:8px 14px;
+          background:var(--dark2);border-radius:10px">
+          <span style="font-size:20px">🥉</span>
+          <span style="flex:1;font-size:14px">${escHtml(third)}</span>
+          <span style="font-size:12px;color:var(--muted)">3° lugar</span>
+        </div>` : ''}
+      </div>
+
+      <button class="btn btn-primary w-full" style="font-size:15px;font-weight:800"
+        onclick="document.getElementById('season-champion-overlay').remove();
+          showScreen('screen-season');loadSeasonScreen()">
+        🏎 Ver temporada finalizada
+      </button>
+    </div>`;
+
+  document.body.appendChild(overlay);
 }
 
 function renderNextRoundButton(currentRound, rounds, spots) {
