@@ -25,7 +25,7 @@ async function loadSeasonScreen() {
     .order('created_at', { ascending: false });
 
   const el = document.getElementById('season-content');
-  const isAdmin = currentUser?.id === ADMIN_UUID;
+  const isAdmin = isOwner ? isOwner() : (currentUser?.id === '37aa3b75-bcc6-45a8-9b63-1de1285d14f6');
 
   // Separar activas y finalizadas
   const active = (seasons||[]).filter(s => s.status !== 'finished');
@@ -130,7 +130,7 @@ async function loadSeasonDetail() {
   seasonStandings = standings || [];
   seasonRounds = rounds || [];
 
-  const isAdmin = currentUser?.id === ADMIN_UUID;
+  const isAdmin = isOwner ? isOwner() : (currentUser?.id === '37aa3b75-bcc6-45a8-9b63-1de1285d14f6');
   const s = currentSeason;
 
   const el = document.getElementById('season-detail-content');
@@ -180,7 +180,7 @@ function renderSeasonTab(tab) {
 
 // ── STANDING TIPO F1 ──────────────────────────
 function renderSeasonStandings(el) {
-  const isAdmin = currentUser?.id === ADMIN_UUID;
+  const isAdmin = isOwner ? isOwner() : (currentUser?.id === '37aa3b75-bcc6-45a8-9b63-1de1285d14f6');
   const s = currentSeason;
 
   const posIcons = ['🥇','🥈','🥉','4️⃣','5️⃣','6️⃣','7️⃣','8️⃣','9️⃣','🔟'];
@@ -307,7 +307,7 @@ function renderSeasonStandings(el) {
 
 // ── FECHAS (RONDAS) ───────────────────────────
 function renderSeasonRounds(el) {
-  const isAdmin = currentUser?.id === ADMIN_UUID;
+  const isAdmin = isOwner ? isOwner() : (currentUser?.id === '37aa3b75-bcc6-45a8-9b63-1de1285d14f6');
   const s = currentSeason;
 
   el.innerHTML = `
@@ -577,7 +577,7 @@ async function renderSeasonPlayoff(el) {
     .order('round', { ascending: true })
     .order('match_number', { ascending: true });
 
-  const isAdmin = currentUser?.id === ADMIN_UUID;
+  const isAdmin = isOwner ? isOwner() : (currentUser?.id === '37aa3b75-bcc6-45a8-9b63-1de1285d14f6');
   const s = currentSeason;
 
   if (!matches?.length || s.status === 'active') {
@@ -705,7 +705,7 @@ async function confirmPlayoffSeasonMatch(matchId, p1Name, p2Name, format) {
 }
 
 function renderNextRoundButton(currentRound, rounds, spots) {
-  const isAdmin = currentUser?.id === ADMIN_UUID;
+  const isAdmin = isOwner ? isOwner() : (currentUser?.id === '37aa3b75-bcc6-45a8-9b63-1de1285d14f6');
   if (!isAdmin) return '';
 
   const currentRoundMatches = rounds[currentRound];
