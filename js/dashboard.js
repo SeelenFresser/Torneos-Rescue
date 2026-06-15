@@ -140,6 +140,10 @@ async function loadDashboard() {
       style="border-color:var(--gold);color:var(--gold);font-weight:700">
       🏎 Liga Beyblade F1
     </button>
+    <button class="btn" onclick="open2v2Screen()"
+      style="border-color:var(--magic);color:var(--magic);font-weight:700">
+      🧙 Commander 2vs2
+    </button>
     <button class="btn" onclick="openFreeSpinner()"
       style="border-color:var(--bey);color:var(--bey)">
       🎲 Dados & Ruleta
