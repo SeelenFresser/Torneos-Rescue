@@ -1,5 +1,5 @@
 // =============================================
-// BEYBLADE SEASON — Liga tipo Fórmula 1
+// BEYBLADE SEASON — Liga tipo F1 (puntos por posición)
 // =============================================
 
 const F1_POINTS = [25, 18, 15, 12, 10, 8, 6, 4, 2, 1];
@@ -37,7 +37,7 @@ async function loadSeasonScreen() {
     ${isAdmin ? `
     <button class="btn btn-primary w-full" style="margin-bottom:16px"
       onclick="openCreateSeasonModal()">
-      🏎 + Nueva Temporada
+      🌀 + Nueva Temporada
     </button>` : ''}
 
     ${active.length ? `
@@ -69,7 +69,7 @@ function renderSeasonCard(s, isActive) {
       <div style="display:flex;gap:16px;font-size:12px;color:var(--muted)">
         <span>🗓 ${s.total_weeks} semanas</span>
         <span>📅 Semana ${s.current_week||0}/${s.total_weeks}</span>
-        <span>👥 ${s.player_count||0} pilotos</span>
+        <span>👥 ${s.player_count||0} bladers</span>
       </div>
     </div>
   </div>`;
@@ -96,7 +96,7 @@ async function createSeason() {
 
   closeModal('modal-create-season');
   AudioFX.roundStart();
-  showToast(`🏎 Temporada "${name}" creada`);
+  showToast(`🌀 Temporada "${name}" creada`);
   await loadSeasonScreen();
 }
 
@@ -180,7 +180,7 @@ function renderSeasonTab(tab) {
   else if (tab === 'playoff') renderSeasonPlayoff(el);
 }
 
-// ── STANDING TIPO F1 ──────────────────────────
+// ── STANDING DE TEMPORADA ──────────────────────────
 function renderSeasonStandings(el) {
   const isAdmin = isSeasonAdmin();
   const s = currentSeason;
@@ -275,8 +275,8 @@ function renderSeasonStandings(el) {
       }).join('')}
     </div>` : `
     <div class="empty-state" style="padding:24px">
-      <div style="font-size:32px;margin-bottom:8px">🏎</div>
-      <p>Aún no hay pilotos registrados.<br>Completa la primera fecha para ver el standing.</p>
+      <div style="font-size:32px;margin-bottom:8px">🌀</div>
+      <p>Aún no hay bladers registrados.<br>Completa la primera fecha para ver el standing.</p>
     </div>`}
 
     <!-- BOTONES ADMIN -->
@@ -293,14 +293,14 @@ function renderSeasonStandings(el) {
       </button>` : ''}
       ${s.status === 'upcoming' ? `
       <button class="btn btn-primary" onclick="startSeason()">
-        🏎 Iniciar Temporada
+        🌀 Iniciar Temporada
       </button>` : ''}
     </div>` : ''}
 
     <!-- SISTEMA DE PUNTOS -->
     <div style="margin-top:16px;background:var(--dark2);border-radius:10px;padding:12px 14px">
       <div style="font-size:11px;color:var(--muted);text-transform:uppercase;
-        letter-spacing:1px;margin-bottom:8px">Sistema de puntos F1</div>
+        letter-spacing:1px;margin-bottom:8px">Sistema de puntos por posición</div>
       <div style="display:flex;flex-wrap:wrap;gap:6px">
         ${F1_POINTS.map((pts,i)=>`
           <div style="background:var(--dark3);border-radius:6px;padding:4px 8px;font-size:11px">
@@ -344,11 +344,11 @@ function renderSeasonRounds(el) {
             </div>
             <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
               ${r.points_distributed ? `
-                <span style="font-size:11px;color:var(--green);font-weight:700">✓ Puntos F1 dados</span>` :
+                <span style="font-size:11px;color:var(--green);font-weight:700">✓ Puntos dados</span>` :
               isAdmin && t?.status==='finished' ? `
                 <button class="btn btn-sm btn-primary"
                   onclick="distributeF1Points('${r.id}','${r.tournament_id}','${r.week_number}')">
-                  🏎 Dar puntos F1
+                  🌀 Dar puntos
                 </button>` : ''}
               ${isAdmin && t?.status !== 'finished' ? `
                 <button class="btn btn-sm" style="border-color:var(--std);color:var(--std)"
@@ -449,9 +449,9 @@ function renderRoundSnapshot(snapshotJson) {
 
 
 
-// ── DISTRIBUIR PUNTOS F1 ──────────────────────
+// ── DISTRIBUIR PUNTOS POR POSICIÓN ──────────────────────
 async function distributeF1Points(roundId, tournamentId, weekNumber) {
-  if (!confirm(`¿Distribuir puntos F1 para la Fecha ${weekNumber}? Esto no se puede deshacer.`)) return;
+  if (!confirm(`¿Distribuir puntos para la Fecha ${weekNumber}? Esto no se puede deshacer.`)) return;
 
   // Obtener jugadores del torneo ordenados por posición final
   const { data: players } = await _supabase
@@ -470,7 +470,7 @@ async function distributeF1Points(roundId, tournamentId, weekNumber) {
 
   const snapshotData = [];
 
-  // Dar puntos F1 a cada jugador
+  // Dar puntos por posición final a cada jugador
   for (let i = 0; i < sorted.length; i++) {
     const f1pts = F1_POINTS[i] || 0;
     const p = sorted[i];
@@ -534,7 +534,7 @@ async function distributeF1Points(roundId, tournamentId, weekNumber) {
   }
 
   AudioFX.victory();
-  showToast('🏎 Puntos F1 distribuidos ✓');
+  showToast('🌀 Puntos distribuidos ✓');
   await loadSeasonDetail();
   switchSeasonTab('standings');
 }
@@ -545,7 +545,7 @@ async function startSeason() {
     .eq('id', currentSeason.id);
   currentSeason.status = 'active';
   AudioFX.roundStart();
-  showToast('🏎 ¡Temporada iniciada!');
+  showToast('🌀 ¡Temporada iniciada!');
   await loadSeasonDetail();
 }
 
@@ -787,7 +787,7 @@ function showSeasonChampion(champion, second, third) {
       box-shadow:0 0 80px rgba(245,208,96,0.5)">
 
       <div style="font-size:16px;color:var(--bey);font-weight:700;text-transform:uppercase;
-        letter-spacing:2px;margin-bottom:8px">🏎 Campeón de Temporada</div>
+        letter-spacing:2px;margin-bottom:8px">🌀 Campeón de Temporada</div>
       <div style="font-size:14px;color:var(--muted);margin-bottom:20px">
         ${escHtml(currentSeason.name)}
       </div>
@@ -823,7 +823,7 @@ function showSeasonChampion(champion, second, third) {
       <button class="btn btn-primary w-full" style="font-size:15px;font-weight:800"
         onclick="document.getElementById('season-champion-overlay').remove();
           showScreen('screen-season');loadSeasonScreen()">
-        🏎 Ver temporada finalizada
+        🌀 Ver temporada finalizada
       </button>
     </div>`;
 
