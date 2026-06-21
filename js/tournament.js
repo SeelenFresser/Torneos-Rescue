@@ -35,6 +35,11 @@ async function openTournament(id) {
   else renderEliminationView();
 
   startRealtimeSubscription(id);
+
+  // Timer: visible solo para el dueño/admin del torneo
+  const timerBtn = document.getElementById('t-timer-btn');
+  if (timerBtn) timerBtn.style.display = isOwner() ? '' : 'none';
+  if (typeof loadTimerState === 'function') loadTimerState(t.id);
 }
 
 async function loadPlayers() {
