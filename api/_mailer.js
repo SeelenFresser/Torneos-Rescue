@@ -185,7 +185,7 @@ async function sendAnnouncement(emails, subject, message, tournamentData = null)
     <div style="background:#220016;border:1px solid #E0176A;border-radius:12px;padding:18px 20px;margin:16px 0">
       <div style="font-size:10px;color:#E0176A;font-weight:700;text-transform:uppercase;
         letter-spacing:2px;margin-bottom:8px">📅 Torneo</div>
-      <div style="font-size:20px;font-weight:800;color:#fff;margin-bottom:4px">${tournamentData.name}</div>
+      <div style="font-size:20px;font-weight:800;color:#fff;margin-bottom:4px">${tournamentData.name || 'Torneo'}</div>
       ${tournamentData.type ? `<div style="font-size:13px;color:#9060A0;margin-bottom:6px">${tournamentData.type}</div>` : ''}
       ${tournamentData.date ? `<div style="font-size:14px;color:#F5D060;font-weight:600">📅 ${tournamentData.date}</div>` : ''}
     </div>` : '';
