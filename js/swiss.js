@@ -61,7 +61,9 @@ function renderSwissView() {
               ${p.user_id ? '👤' : '🤖'} ${escHtml(p.name)}
               ${p.bey_name ? ` <span style="color:var(--muted)">(${escHtml(p.bey_name)})</span>` : ''}
               ${(p.losses||0) === 0 && roundsDone > 0 ? '<span style="color:var(--green);font-size:10px">●</span>' : ''}
-              ${owner && t.status === 'upcoming' ? `<button class="chip-remove" onclick="removePlayer('${p.id}')">×</button>` : ''}
+              ${owner && (t.status === 'upcoming' || t.status === 'active') ? `
+                <button class="chip-edit" onclick="openEditPlayerNameModal('${p.id}','${escHtml(p.name).replace(/'/g,"\\'")}')" title="Editar nombre">✏️</button>
+                <button class="chip-remove" onclick="removePlayer('${p.id}')" title="Eliminar jugador">×</button>` : ''}
             </div>`).join('')}
           ${players.length === 0 ? '<span style="color:var(--muted);font-size:13px">Sin jugadores aún</span>' : ''}
         </div>
