@@ -34,15 +34,18 @@ async function renderBeybladeRRView() {
           <input class="input" id="rr-bey-player-name" type="text" placeholder="Nombre del jugador"
             onkeydown="if(event.key==='Enter')addPlayerRRBey()" style="flex:1">
           <button class="btn btn-primary" onclick="addPlayerRRBey()">+ Agregar</button>
-        </div>
+        </div>` : ''}
         <div class="chips" style="margin-top:10px">
           ${players.map(p => `
             <div class="chip">
               ${p.user_id?'👤':'🤖'} ${escHtml(p.name)}
-              <button class="chip-remove" onclick="removePlayer('${p.id}')">×</button>
+              ${owner && (t.status === 'upcoming' || t.status === 'active') ? `
+                <button class="chip-edit" onclick="openEditPlayerNameModal('${p.id}','${escHtml(p.name).replace(/'/g,"\\'")}')" title="Editar nombre">✏️</button>
+                <button class="chip-remove" onclick="removePlayer('${p.id}')" title="Eliminar jugador">×</button>` : ''}
             </div>`).join('')}
           ${!players.length?'<span style="color:var(--muted);font-size:13px">Sin jugadores</span>':''}
         </div>
+        ${owner && t.status === 'upcoming' ? `
         ${n >= 2 ? `<p style="font-size:12px;color:var(--muted);margin-top:6px">
           📊 ${n} jugadores → <strong style="color:var(--bey)">${totalRounds} jornadas</strong> · todos contra todos
           ${n%2!==0?'<span style="font-size:11px"> · 1 descanso por jugador</span>':''}
