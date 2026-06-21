@@ -288,6 +288,7 @@ select.input { cursor: pointer; }
 .type-card[data-type="league"].active    { border-color: var(--gold);  background: rgba(245,208,96,0.1); }
 .badge-league { background: rgba(245,208,96,0.15); color: var(--gold); }
 .type-icon  { font-size: 24px; }
+.type-icon-img { width: 32px; height: 32px; object-fit: contain; margin: 0 auto 4px; display: block; }
 .type-label { font-size: 13px; font-weight: 700; margin-top: 4px; }
 .type-sub   { font-size: 11px; color: var(--muted); }
 
