@@ -13,11 +13,18 @@ async function openTournament(id) {
 
   currentTournament = t;
   document.getElementById('t-name-nav').textContent = t.name;
-  const badgeMap = { commander:'badge-magic 🧙 Commander', standard:'badge-std 🃏 Standard', beyblade:'badge-bey 🌀 Beyblade' };
-  const [cls, ...lbl] = (badgeMap[t.type] || 'badge-admin Torneo').split(' ');
+  const badgeMap = {
+    commander: { cls:'badge-magic', label:'Commander', icon:'img/magic-bunny-icon.png' },
+    standard:  { cls:'badge-std',   label:'Standard',  icon:'img/magic-bunny-icon.png' },
+    beyblade:  { cls:'badge-bey',   label:'Beyblade',  icon:'img/beyblade-bunny-icon.png' },
+    league:    { cls:'badge-std',   label:'Liga',       icon:'img/magic-bunny-icon.png' }
+  };
+  const info = badgeMap[t.type] || { cls:'badge-admin', label:'Torneo', icon:null };
   const badge = document.getElementById('t-type-badge');
-  badge.textContent = lbl.join(' ');
-  badge.className = 'badge ' + cls;
+  badge.innerHTML = info.icon
+    ? `<img src="${info.icon}" style="width:14px;height:14px;object-fit:contain;vertical-align:-2px;margin-right:3px">${info.label}`
+    : info.label;
+  badge.className = 'badge ' + info.cls;
 
   await loadPlayers();
 
