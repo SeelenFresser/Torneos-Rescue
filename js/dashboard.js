@@ -256,6 +256,7 @@ async function joinTournament() {
 function goToDashboard() {
   stopRealtimeSubscription();
   clearInterval(window._swissPollTimer);
+  if (typeof stopTimerSubscription === 'function') stopTimerSubscription();
   showScreen('screen-dashboard');
   loadDashboard();
 }
