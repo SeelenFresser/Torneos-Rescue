@@ -70,7 +70,6 @@
       <div style="display:flex;gap:8px">
         <button class="btn btn-sm" id="btn-announce" style="display:none;border-color:var(--std);color:var(--std)"
           onclick="openAnnounceModal()">📧 Anuncio</button>
-        <button class="btn btn-sm" id="btn-timer" style="display:none;border-color:var(--std);color:var(--std)" onclick="openTimerModal()">⏱ Timer</button>
       <button class="btn btn-primary" id="btn-new-tournament" style="display:none" onclick="openNewTournamentModal()">+ Nuevo torneo</button>
       </div>
     </div>
@@ -167,10 +166,13 @@
       <img src="img/logo.png" alt="Rescue TCG">
       <span class="nav-logo-text" id="t-name-nav">Torneo</span>
     </div>
-    <div class="nav-right">
+    <div class="nav-right" style="display:flex;align-items:center;gap:8px">
       <span class="badge" id="t-type-badge"></span>
+      <button class="btn btn-sm" id="t-timer-btn" style="display:none;border-color:var(--std);color:var(--std)"
+        onclick="openTimerModal()">⏱ Timer</button>
     </div>
   </nav>
+  <div id="round-timer-bar" style="display:none"></div>
   <div class="container" id="tournament-content"></div>
 </div>
 
