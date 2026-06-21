@@ -10,6 +10,15 @@ function selectType(type) {
   document.querySelectorAll('.type-card').forEach(c => c.classList.toggle('active', c.dataset.type === type));
   document.getElementById('nt-format-row').style.display    = (type !== 'commander' && type !== 'league') ? '' : 'none';
   document.getElementById('nt-commander-row').style.display = type === 'commander' ? '' : 'none';
+
+  // Round Robin solo disponible para Beyblade
+  const rrLabel = document.getElementById('nt-format-rr-label');
+  if (rrLabel) rrLabel.style.display = type === 'beyblade' ? '' : 'none';
+  // Si se cambia de Beyblade a otro tipo mientras RR estaba seleccionado, volver a swiss
+  if (type !== 'beyblade') {
+    const rrRadio = document.querySelector('input[name="nt-format"][value="roundrobin"]');
+    if (rrRadio?.checked) document.querySelector('input[name="nt-format"][value="swiss"]').checked = true;
+  }
 }
 
 function openNewTournamentModal() {
