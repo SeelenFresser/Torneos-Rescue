@@ -23,6 +23,7 @@ async function openTournament(id) {
 
   if (t.type === 'commander') renderCommanderView();
   else if (t.format === 'league') renderLeagueView();
+  else if (t.format === 'roundrobin' && t.type === 'beyblade') renderBeybladeRRView();
   else if (t.format === 'swiss') renderSwissView();
   else renderEliminationView();
 
@@ -160,7 +161,7 @@ async function saveEditMatch() {
   }).eq('id', matchId);
 
   // Revertir y re-aplicar puntos según formato
-  if (mType === 'swiss') {
+  if (mType === 'swiss' || mType === 'beyrr') {
     // Revertir ganador anterior
     const oldW = tournamentPlayers.find(p=>p.id===oldWinnerId);
     const oldL = tournamentPlayers.find(p=>p.id===oldLoserId);
@@ -296,6 +297,7 @@ function refreshCurrentView() {
   if (!currentTournament) return;
   if (currentTournament.type === 'commander') renderCommanderView();
   else if (currentTournament.format === 'league') renderLeagueView();
+  else if (currentTournament.format === 'roundrobin' && currentTournament.type === 'beyblade') renderBeybladeRRView();
   else if (currentTournament.format === 'swiss') renderSwissView();
   else renderEliminationView();
 }
