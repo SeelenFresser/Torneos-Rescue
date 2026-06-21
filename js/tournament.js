@@ -77,8 +77,77 @@ async function addPlayer(nameInputId, beyInputId) {
 }
 
 async function removePlayer(playerId) {
-  if (!confirm('¿Quitar este jugador?')) return;
+  const player = tournamentPlayers.find(p => p.id === playerId);
+  if (!player) return;
+
+  const isActive = currentTournament.status === 'active';
+  const msg = isActive
+    ? `¿Quitar a ${player.name}? Si tiene partidas pendientes en la ronda actual, se marcarán como BYE automático para su rival.`
+    : `¿Quitar a ${player.name}?`;
+  if (!confirm(msg)) return;
+
+  if (isActive) {
+    // Buscar partidas pendientes (no completadas) de este jugador en la ronda actual
+    const { data: pendingMatches } = await _supabase
+      .from('matches').select('*')
+      .eq('tournament_id', currentTournament.id)
+      .eq('round', currentTournament.current_round)
+      .or(`player1_id.eq.${playerId},player2_id.eq.${playerId}`)
+      .eq('is_complete', false);
+
+    for (const m of (pendingMatches || [])) {
+      const isP1 = m.player1_id === playerId;
+      const opponentId = isP1 ? m.player2_id : m.player1_id;
+
+      if (opponentId) {
+        // Dar la victoria automática al rival
+        await _supabase.from('matches').update({
+          winner_id: opponentId,
+          score_p1: isP1 ? 0 : 2,
+          score_p2: isP1 ? 2 : 0,
+          is_complete: true
+        }).eq('id', m.id);
+
+        const opponent = tournamentPlayers.find(p => p.id === opponentId);
+        if (opponent) {
+          await _supabase.from('players').update({
+            wins: (opponent.wins || 0) + 1,
+            points: (opponent.points || 0) + 3
+          }).eq('id', opponentId);
+        }
+      } else {
+        // Era un BYE — simplemente borrar el match
+        await _supabase.from('matches').delete().eq('id', m.id);
+      }
+    }
+  }
+
   await _supabase.from('players').delete().eq('id', playerId);
+  AudioFX.tap();
+  showToast(`${player.name} eliminado del torneo`);
+  await loadPlayers();
+  refreshCurrentView();
+}
+
+// ── EDITAR NOMBRE DE JUGADOR YA INSCRITO ─────────────────
+function openEditPlayerNameModal(playerId, currentName) {
+  const newName = prompt('Editar nombre del jugador:', currentName);
+  if (newName === null) return; // canceló
+  const trimmed = newName.trim();
+  if (!trimmed) { showToast('El nombre no puede estar vacío'); return; }
+  renamePlayerInTournament(playerId, trimmed);
+}
+
+async function renamePlayerInTournament(playerId, newName) {
+  const { error } = await _supabase.from('players').update({ name: newName }).eq('id', playerId);
+  if (error) { showToast('Error: ' + error.message); return; }
+
+  // También actualizar el nombre en matches existentes para mantener consistencia visual
+  await _supabase.from('matches').update({ player1_name: newName }).eq('player1_id', playerId);
+  await _supabase.from('matches').update({ player2_name: newName }).eq('player2_id', playerId);
+
+  AudioFX.tap();
+  showToast('Nombre actualizado ✓');
   await loadPlayers();
   refreshCurrentView();
 }
