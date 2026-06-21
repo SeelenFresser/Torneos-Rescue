@@ -147,7 +147,7 @@ async function loadDashboard() {
     </button>
     <button class="btn" onclick="openSeasonScreen()"
       style="border-color:var(--gold);color:var(--gold);font-weight:700">
-      🏎 Liga Beyblade F1
+      🌀 Liga Beyblade
     </button>
     <button class="btn" onclick="open2v2Screen()"
       style="border-color:var(--magic);color:var(--magic);font-weight:700">
