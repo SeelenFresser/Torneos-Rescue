@@ -151,7 +151,7 @@ async function loadDashboard() {
     </button>
     <button class="btn" onclick="open2v2Screen()"
       style="border-color:var(--magic);color:var(--magic);font-weight:700">
-      🧙 Commander 2vs2
+      <img src="img/magic-bunny-icon.png" style="width:18px;height:18px;vertical-align:-3px;margin-right:4px">Commander 2vs2
     </button>
     <button class="btn" onclick="openFreeSpinner()"
       style="border-color:var(--bey);color:var(--bey)">
@@ -182,9 +182,9 @@ async function loadDashboard() {
     return;
   }
 
-  const icons  = { commander:'🧙', standard:'🃏', beyblade:'🌀', league:'🏅' };
+  const icons  = { commander:'img/magic-bunny-icon.png', standard:'img/magic-bunny-icon.png', beyblade:'img/beyblade-bunny-icon.png', league:'img/magic-bunny-icon.png' };
   const labels = { commander:'Commander · Pods', standard:'Standard · Bo3', beyblade:'Beyblade · Bo3', league:'Liga Semanal · MTG' };
-  const fmtLbl = { swiss:'Swiss', elimination:'Eliminación directa', pods:'', league:'' };
+  const fmtLbl = { swiss:'Swiss', elimination:'Eliminación directa', pods:'', league:'', roundrobin:'Round Robin' };
 
   el.innerHTML = data.map(t => {
     const dateStr = formatTournamentDate(t.tournament_date);
@@ -202,7 +202,7 @@ async function loadDashboard() {
 
     return `<div class="t-card ${t.type}" onclick="openTournament('${t.id}')">
       <div class="t-card-header">
-        <div class="t-card-icon">${icons[t.type] || '🏆'}</div>
+        <div class="t-card-icon"><img src="${icons[t.type]||'img/magic-bunny-icon.png'}" style="width:28px;height:28px;object-fit:contain"></div>
         <div class="t-card-info">
           <div class="t-card-name">${escHtml(t.name)}</div>
           <div class="t-card-type">${labels[t.type]}${t.format !== 'pods' ? ' · ' + fmtLbl[t.format] : ''}</div>
@@ -285,13 +285,13 @@ async function loadHallOfFame() {
     return;
   }
 
-  const icons = { commander:'🧙', standard:'🃏', beyblade:'🌀', league:'🏅' };
+  const icons = { commander:'img/magic-bunny-icon.png', standard:'img/magic-bunny-icon.png', beyblade:'img/beyblade-bunny-icon.png', league:'img/magic-bunny-icon.png' };
   el.innerHTML = `<table class="t-table" style="font-size:12px">
     <thead><tr><th>Torneo</th><th>Tipo</th><th>Campeón</th><th>Fecha</th></tr></thead>
     <tbody>
       ${data.map(r => `<tr>
         <td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(r.tournament_name)}</td>
-        <td>${icons[r.tournament_type]||'🏆'}</td>
+        <td><img src="${icons[r.tournament_type]||'img/magic-bunny-icon.png'}" style="width:20px;height:20px;object-fit:contain"></td>
         <td style="color:var(--gold);font-weight:700">👑 ${escHtml(r.winner_name)}</td>
         <td style="color:var(--muted)">${r.tournament_date ? new Date(r.tournament_date).toLocaleDateString('es-MX',{day:'2-digit',month:'short',year:'numeric'}) : '—'}</td>
       </tr>`).join('')}
