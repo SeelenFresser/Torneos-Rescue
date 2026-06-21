@@ -61,7 +61,10 @@ async function openAnnounceModal() {
 async function sendAnnouncement() {
   const subject     = document.getElementById('ann-subject').value.trim();
   const message     = document.getElementById('ann-message').value.trim();
-  const tournamentId = document.getElementById('ann-tournament').value || null;
+  const sel         = document.getElementById('ann-tournament');
+  const tournamentId = sel.value || null;
+  const selectedOpt = [...sel.options].find(o => o.value === sel.value);
+  const tData       = selectedOpt?._data || null;
   const statusEl    = document.getElementById('ann-status');
   const btn         = document.getElementById('btn-send-announce');
 
@@ -94,6 +97,15 @@ async function sendAnnouncement() {
       return;
     }
 
+    const typeLabels = { commander:'Commander', standard:'Standard Bo3', beyblade:'Beyblade Bo3', league:'Liga Semanal' };
+    const tournamentData = tData ? {
+      name: tData.name,
+      type: typeLabels[tData.type] || tData.type,
+      date: tData.tournament_date
+        ? new Date(tData.tournament_date).toLocaleString('es-MX', { weekday:'long', day:'2-digit', month:'long', hour:'2-digit', minute:'2-digit', hour12:false })
+        : null
+    } : null;
+
     const res = await fetch(ANNOUNCE_FN_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -101,7 +113,7 @@ async function sendAnnouncement() {
         subject, message,
         emails,
         admin_secret: 'rescuetcg_admin_2026',
-        tournament_data: tournamentId ? { id: tournamentId } : null
+        tournament_data: tournamentData
       })
     });
 
