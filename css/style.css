@@ -302,6 +302,8 @@ select.input { cursor: pointer; }
 .chip { display: inline-flex; align-items: center; gap: 6px; background: var(--dark3); border: 1px solid var(--border); border-radius: 20px; padding: 4px 10px; font-size: 12px; }
 .chip-remove { background: none; border: none; color: var(--muted2); cursor: pointer; font-size: 14px; line-height: 1; padding: 0; }
 .chip-remove:hover { color: var(--red); }
+.chip-edit { background: none; border: none; color: var(--muted2); cursor: pointer; font-size: 11px; line-height: 1; padding: 0; margin-left: 4px; }
+.chip-edit:hover { opacity: 0.7; }
 .add-row { display: flex; gap: 8px; align-items: flex-start; }
 .add-row .input { margin-bottom: 0; }
 
