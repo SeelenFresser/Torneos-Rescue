@@ -560,6 +560,12 @@ async function confirmPlayoffMatch(matchId, p1Id, p2Id) {
   await loadAndRenderPlayoff();
 }
 
+// Resuelve el nombre de un jugador a partir de su ID
+function getName(playerId) {
+  const p = tournamentPlayers.find(p => p.id === playerId);
+  return p ? p.name : 'Jugador';
+}
+
 async function generateLeagueFinals() {
   // Obtener semis completadas de la ronda más baja del playoff
   const { data: allPlayoff } = await _supabase
