@@ -23,7 +23,7 @@ function renderEliminationView() {
         <span class="section-title">${icon} Participantes (${players.length})</span>
         ${owner && t.status === 'active' ? `<div style="display:flex;gap:6px">
           <button class="btn btn-sm" onclick="generateElimRound()">🔀 Generar ronda</button>
-          <button class="btn btn-sm btn-danger" onclick="finishTournament()">Finalizar</button>
+          <button class="btn btn-sm btn-danger" onclick="finalizarElimination()">Finalizar</button>
         </div>` : ''}
       </div>
       <div class="section-body">
@@ -307,4 +307,13 @@ function renderElimStandings(players) {
         </tr>`).join('')}
     </tbody>
   </table>`;
+}
+
+
+// ── FINALIZAR TORNEO DE ELIMINACIÓN ───────────────────────
+async function finalizarElimination() {
+  await setTournamentStatus('finished');
+  await registerHallOfFame(currentTournament.id);
+  renderEliminationView();
+  setTimeout(() => showWinnerPopup(tournamentPlayers), 600);
 }
