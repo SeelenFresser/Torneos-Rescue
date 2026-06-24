@@ -17,6 +17,13 @@ const CMD_PTS_DESC = {
   winner:    'Solo victoria: 1°=1pt'
 };
 
+// Wrapper que calcula puntos según sistema, posición y tamaño del pod
+function getPts(system, place, size) {
+  if (place === '?' || place == null) return 0;
+  const fn = CMD_PTS[system] || CMD_PTS.standard;
+  return fn(place, size) || 0;
+}
+
 // ── VISTA ADMIN ───────────────────────────────────────────
 function renderCommanderView() {
   const t = currentTournament, players = tournamentPlayers, owner = isOwner();
