@@ -451,6 +451,28 @@ async function enterGameApp(tournamentId) {
     return;
   }
 
+  if (currentTournament.type === 'commander1v1') {
+    if (!myPlayer) { showToast('No estás inscrito en este torneo'); return; }
+    const { data: matches } = await _supabase
+      .from('matches').select('*')
+      .eq('tournament_id', tournamentId)
+      .eq('round', currentTournament.current_round)
+      .eq('match_type', 'commander1v1')
+      .eq('is_complete', false);
+
+    const myMatch = (matches || []).find(m =>
+      m.player1_id === myPlayer.id || m.player2_id === myPlayer.id
+    );
+
+    if (myMatch) {
+      if (typeof openC1v1LifeTracker === 'function') openC1v1LifeTracker(myMatch.id);
+      else showToast('Aún no se ha generado tu emparejamiento');
+    } else {
+      showToast('No tienes una partida pendiente en esta ronda');
+    }
+    return;
+  }
+
   // Para Beyblade y Standard: buscar el match actual del jugador
   // para pasar solo los 2 jugadores del enfrentamiento
   if (currentTournament.current_round > 0) {
