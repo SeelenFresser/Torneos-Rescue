@@ -6,6 +6,18 @@ let joiningTournamentId = null;
 let editingTournamentId = null;
 
 function selectType(type) {
+  if (type === 'commander2v2') {
+    // Commander 2vs2 tiene su propio sistema de gestión — redirigir directamente
+    closeModal('modal-new-tournament');
+    setTimeout(() => {
+      open2v2Screen();
+      // Re-seleccionar 'commander' para la próxima vez que se abra el modal normal
+      document.querySelector('.type-card[data-type="commander"]')?.classList.add('active');
+      document.querySelector('.type-card[data-type="commander2v2"]')?.classList.remove('active');
+    }, 150);
+    return;
+  }
+
   selectedType = type;
   document.querySelectorAll('.type-card').forEach(c => c.classList.toggle('active', c.dataset.type === type));
   document.getElementById('nt-format-row').style.display    = (type !== 'commander' && type !== 'league') ? '' : 'none';
@@ -133,29 +145,9 @@ async function loadDashboard() {
       style="border-color:var(--magic);color:var(--magic);font-weight:700">
       🧙 Commander en vivo
     </button>
-    <button class="btn" onclick="openFreeLifeCounter('commander')"
-      style="border-color:var(--magic);color:var(--magic)">
-      🧙 Contador (40 PV)
-    </button>
-    <button class="btn" onclick="openFreeLifeCounter('standard')"
-      style="border-color:var(--std);color:var(--std)">
-      🃏 Contador (20 PV)
-    </button>
-    <button class="btn" onclick="openFreeBeybladeMatch()"
-      style="border-color:var(--bey);color:var(--bey);font-weight:700">
-      🌀 Beyblade — Partida amistosa
-    </button>
     <button class="btn" onclick="openSeasonScreen()"
       style="border-color:var(--gold);color:var(--gold);font-weight:700">
       🌀 Liga Beyblade
-    </button>
-    <button class="btn" onclick="open2v2Screen()"
-      style="border-color:var(--magic);color:var(--magic);font-weight:700">
-      <img src="img/magic-bunny-icon.png" style="width:18px;height:18px;vertical-align:-3px;margin-right:4px">Commander 2vs2
-    </button>
-    <button class="btn" onclick="openFreeSpinner()"
-      style="border-color:var(--bey);color:var(--bey)">
-      🎲 Dados & Ruleta
     </button>
   `;
 
