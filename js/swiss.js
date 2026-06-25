@@ -414,8 +414,13 @@ async function _confirmSwissMatchById(matchId, s1, s2) {
     score_p1: s1, score_p2: s2, winner_id: winnerId, is_complete: true
   }).eq('id', matchId);
 
-  const p1 = tournamentPlayers.find(p => p.id === match.player1_id);
-  const p2 = tournamentPlayers.find(p => p.id === match.player2_id);
+  // Leer datos FRESCOS de la DB — no confiar en tournamentPlayers que puede estar desfasado
+  const { data: freshPlayers } = await _supabase
+    .from('players').select('id, wins, losses, points, game_wins, game_losses')
+    .in('id', [match.player1_id, match.player2_id]);
+
+  const p1 = freshPlayers?.find(p => p.id === match.player1_id);
+  const p2 = freshPlayers?.find(p => p.id === match.player2_id);
 
   if (p1) await _supabase.from('players').update({
     wins:        (p1.wins   || 0) + (s1 > s2 ? 1 : 0),
@@ -424,6 +429,7 @@ async function _confirmSwissMatchById(matchId, s1, s2) {
     game_wins:   (p1.game_wins   || 0) + s1,
     game_losses: (p1.game_losses || 0) + s2
   }).eq('id', p1.id);
+  else console.error('_confirmSwissMatchById: no se encontró player1 en DB', match.player1_id);
 
   if (p2) await _supabase.from('players').update({
     wins:        (p2.wins   || 0) + (s2 > s1 ? 1 : 0),
@@ -432,6 +438,7 @@ async function _confirmSwissMatchById(matchId, s1, s2) {
     game_wins:   (p2.game_wins   || 0) + s2,
     game_losses: (p2.game_losses || 0) + s1
   }).eq('id', p2.id);
+  else console.error('_confirmSwissMatchById: no se encontró player2 en DB', match.player2_id);
 
   await loadPlayers();
   await loadSwissRounds();
