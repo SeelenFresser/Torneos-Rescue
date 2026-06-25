@@ -15,6 +15,7 @@ async function openTournament(id) {
   document.getElementById('t-name-nav').textContent = t.name;
   const badgeMap = {
     commander: { cls:'badge-magic', label:'Commander', icon:'img/magic-bunny-icon.png' },
+    commander1v1: { cls:'badge-magic', label:'Commander 1v1', icon:'img/magic-bunny-icon.png' },
     standard:  { cls:'badge-std',   label:'Standard',  icon:'img/magic-bunny-icon.png' },
     beyblade:  { cls:'badge-bey',   label:'Beyblade',  icon:'img/beyblade-bunny-icon.png' },
     league:    { cls:'badge-std',   label:'Liga',       icon:'img/magic-bunny-icon.png' }
@@ -28,7 +29,8 @@ async function openTournament(id) {
 
   await loadPlayers();
 
-  if (t.type === 'commander') renderCommanderView();
+  if (t.type === 'commander1v1') renderCommander1v1View();
+  else if (t.type === 'commander') renderCommanderView();
   else if (t.format === 'league') renderLeagueView();
   else if (t.format === 'roundrobin' && t.type === 'beyblade') renderBeybladeRRView();
   else if (t.format === 'swiss') renderSwissView();
@@ -376,7 +378,8 @@ async function openEditPodModal(podIdx) {
 
 function refreshCurrentView() {
   if (!currentTournament) return;
-  if (currentTournament.type === 'commander') renderCommanderView();
+  if (currentTournament.type === 'commander1v1') renderCommander1v1View();
+  else if (currentTournament.type === 'commander') renderCommanderView();
   else if (currentTournament.format === 'league') renderLeagueView();
   else if (currentTournament.format === 'roundrobin' && currentTournament.type === 'beyblade') renderBeybladeRRView();
   else if (currentTournament.format === 'swiss') renderSwissView();
