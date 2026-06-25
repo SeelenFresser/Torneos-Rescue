@@ -400,11 +400,15 @@ async function confirmPod(podIdx) {
     is_confirmed: true
   }).eq('id',s.id);
 
-  // Actualizar puntos de jugadores
+  // Actualizar puntos de jugadores — leer datos FRESCOS de la DB
+  const podPlayerIds = players.map(p => p.id);
+  const { data: freshPodPlayers } = await _supabase
+    .from('players').select('id, points, wins').in('id', podPlayerIds);
+
   for (const p of players) {
     const r = resultData[p.id];
-    const dbPlayer = tournamentPlayers.find(tp=>tp.id===p.id);
-    if (!dbPlayer) continue;
+    const dbPlayer = freshPodPlayers?.find(tp=>tp.id===p.id);
+    if (!dbPlayer) { console.error('confirmPod: no se encontró jugador en DB', p.id, p.name); continue; }
     let pts = 0;
     if (isCEDH) {
       pts = (r.kills||0) + (r.place===1?1:0);
