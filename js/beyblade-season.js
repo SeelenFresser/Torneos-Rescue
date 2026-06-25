@@ -451,8 +451,29 @@ function renderRoundSnapshot(snapshotJson) {
 
 // ── DISTRIBUIR PUNTOS POR POSICIÓN ──────────────────────
 async function distributeF1Points(roundId, tournamentId, weekNumber) {
+  if (window._distributingF1 === roundId) { showToast('Ya se está procesando esta fecha...'); return; }
   if (!confirm(`¿Distribuir puntos para la Fecha ${weekNumber}? Esto no se puede deshacer.`)) return;
 
+  window._distributingF1 = roundId;
+  try {
+    // Marcar atómicamente como "en proceso" — si ya estaba distribuido, no continuar
+    const { data: claimed, error: claimErr } = await _supabase
+      .from('beyblade_season_rounds')
+      .update({ points_distributed: true })
+      .eq('id', roundId)
+      .eq('points_distributed', false)
+      .select('id');
+
+    if (claimErr) { showToast('Error: '+claimErr.message); return; }
+    if (!claimed?.length) { showToast('Esta fecha ya fue distribuida'); return; }
+
+    await distributeF1PointsInternal(roundId, tournamentId, weekNumber);
+  } finally {
+    window._distributingF1 = null;
+  }
+}
+
+async function distributeF1PointsInternal(roundId, tournamentId, weekNumber) {
   // Obtener jugadores del torneo ordenados por posición final
   const { data: players } = await _supabase
     .from('players').select('*')
