@@ -260,36 +260,51 @@ function renderBeyRRMatch(m, owner, active) {
 }
 
 async function confirmBeyRRMatch(matchId, p1Id, p2Id) {
-  const s1 = parseInt(document.getElementById(`bm${matchId}-s1`)?.value)||0;
-  const s2 = parseInt(document.getElementById(`bm${matchId}-s2`)?.value)||0;
-  if (s1+s2<2||s1>2||s2>2||(s1!==2&&s2!==2)) { showToast('Bo3: resultado inválido (ej: 2-0 o 2-1)'); return; }
+  // Guard anti doble-click / doble-submit
+  if (window._confirmingBeyRR === matchId) return;
+  window._confirmingBeyRR = matchId;
 
-  const winnerId = s1>s2 ? p1Id : p2Id;
-  const loserId  = s1>s2 ? p2Id : p1Id;
+  try {
+    const s1 = parseInt(document.getElementById(`bm${matchId}-s1`)?.value)||0;
+    const s2 = parseInt(document.getElementById(`bm${matchId}-s2`)?.value)||0;
+    if (s1+s2<2||s1>2||s2>2||(s1!==2&&s2!==2)) { showToast('Bo3: resultado inválido (ej: 2-0 o 2-1)'); return; }
 
-  const { error } = await _supabase.from('matches').update({
-    score_p1: s1, score_p2: s2, winner_id: winnerId, is_complete: true
-  }).eq('id', matchId);
-  if (error) { showToast('Error: '+error.message); return; }
+    // Verificar en la DB que el match no esté ya confirmado (protege contra doble-click real)
+    const { data: existing } = await _supabase
+      .from('matches').select('is_complete').eq('id', matchId).single();
+    if (existing?.is_complete) { showToast('Este resultado ya fue confirmado'); return; }
 
-  const winner = tournamentPlayers.find(p=>p.id===winnerId);
-  const loser  = tournamentPlayers.find(p=>p.id===loserId);
-  if (winner) await _supabase.from('players').update({
-    wins: (winner.wins||0)+1, points: (winner.points||0)+3,
-    game_wins: (winner.game_wins||0)+(winnerId===p1Id?s1:s2),
-    game_losses: (winner.game_losses||0)+(winnerId===p1Id?s2:s1)
-  }).eq('id',winnerId);
-  if (loser) await _supabase.from('players').update({
-    losses: (loser.losses||0)+1,
-    game_wins: (loser.game_wins||0)+(loserId===p1Id?s1:s2),
-    game_losses: (loser.game_losses||0)+(loserId===p1Id?s2:s1)
-  }).eq('id',loserId);
+    const winnerId = s1>s2 ? p1Id : p2Id;
+    const loserId  = s1>s2 ? p2Id : p1Id;
 
-  AudioFX.roundEnd();
-  showToast('Resultado guardado ✓');
-  await loadPlayers();
-  await loadAndRenderBeyRRRounds();
-  renderBeyRRStandings();
+    // Update atómico: solo aplica si is_complete sigue siendo false
+    const { data: updated, error } = await _supabase.from('matches')
+      .update({ score_p1: s1, score_p2: s2, winner_id: winnerId, is_complete: true })
+      .eq('id', matchId).eq('is_complete', false).select('id');
+    if (error) { showToast('Error: '+error.message); return; }
+    if (!updated?.length) { showToast('Este resultado ya fue confirmado'); return; }
+
+    const winner = tournamentPlayers.find(p=>p.id===winnerId);
+    const loser  = tournamentPlayers.find(p=>p.id===loserId);
+    if (winner) await _supabase.from('players').update({
+      wins: (winner.wins||0)+1, points: (winner.points||0)+3,
+      game_wins: (winner.game_wins||0)+(winnerId===p1Id?s1:s2),
+      game_losses: (winner.game_losses||0)+(winnerId===p1Id?s2:s1)
+    }).eq('id',winnerId);
+    if (loser) await _supabase.from('players').update({
+      losses: (loser.losses||0)+1,
+      game_wins: (loser.game_wins||0)+(loserId===p1Id?s1:s2),
+      game_losses: (loser.game_losses||0)+(loserId===p1Id?s2:s1)
+    }).eq('id',loserId);
+
+    AudioFX.roundEnd();
+    showToast('Resultado guardado ✓');
+    await loadPlayers();
+    await loadAndRenderBeyRRRounds();
+    renderBeyRRStandings();
+  } finally {
+    window._confirmingBeyRR = null;
+  }
 }
 
 // ── STANDINGS ─────────────────────────────────
