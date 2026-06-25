@@ -261,8 +261,13 @@ async function _confirmElimMatchById(matchId, s1, s2) {
     score_p1: s1, score_p2: s2, winner_id: winnerId, is_complete: true
   }).eq('id', matchId);
 
-  const winner = tournamentPlayers.find(p => p.id === winnerId);
-  const loser  = tournamentPlayers.find(p => p.id === loserId);
+  // Leer datos FRESCOS de la DB — no confiar en tournamentPlayers que puede estar desfasado
+  const { data: freshPlayers } = await _supabase
+    .from('players').select('id, wins, losses, points, game_wins, game_losses')
+    .in('id', [winnerId, loserId]);
+
+  const winner = freshPlayers?.find(p => p.id === winnerId);
+  const loser  = freshPlayers?.find(p => p.id === loserId);
 
   if (winner) await _supabase.from('players').update({
     wins:       (winner.wins  || 0) + 1,
@@ -270,6 +275,7 @@ async function _confirmElimMatchById(matchId, s1, s2) {
     game_wins:  (winner.game_wins  || 0) + (s1 > s2 ? s1 : s2),
     game_losses:(winner.game_losses|| 0) + (s1 > s2 ? s2 : s1)
   }).eq('id', winner.id);
+  else console.error('_confirmElimMatchById: no se encontró al ganador en DB', winnerId);
 
   if (loser) await _supabase.from('players').update({
     losses:     (loser.losses || 0) + 1,
@@ -277,6 +283,7 @@ async function _confirmElimMatchById(matchId, s1, s2) {
     game_wins:  (loser.game_wins  || 0) + (s1 < s2 ? s1 : s2),
     game_losses:(loser.game_losses|| 0) + (s1 < s2 ? s2 : s1)
   }).eq('id', loser.id);
+  else console.error('_confirmElimMatchById: no se encontró al perdedor en DB', loserId);
 
   await loadPlayers();
   await loadElimBracket();
