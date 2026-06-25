@@ -203,12 +203,31 @@ function openEditMatchModal(matchId, p1Id, p2Id, p1Name, p2Name, s1, s2, matchTy
   document.getElementById('edit-match-title').textContent = `${p1Name} vs ${p2Name}`;
   document.getElementById('edit-match-p1-name').textContent = p1Name;
   document.getElementById('edit-match-p2-name').textContent = p2Name;
-  document.getElementById('edit-match-s1').value = s1 ?? '';
-  document.getElementById('edit-match-s2').value = s2 ?? '';
   document.getElementById('edit-match-id').value = matchId;
   document.getElementById('edit-match-p1-id').value = p1Id;
   document.getElementById('edit-match-p2-id').value = p2Id;
   document.getElementById('edit-match-type').value = matchType;
+
+  const scoreRow = document.getElementById('edit-match-score-row');
+  const winnerRow = document.getElementById('edit-match-winner-row');
+
+  if (matchType === 'commander1v1') {
+    if (scoreRow) scoreRow.style.display = 'none';
+    if (winnerRow) {
+      winnerRow.style.display = '';
+      document.getElementById('edit-match-winner-p1-label').textContent = p1Name;
+      document.getElementById('edit-match-winner-p2-label').textContent = p2Name;
+      // Marcar al ganador actual si lo hay
+      const currentWinnerInput = (s1 === 1) ? 'edit-match-winner-1' : (s2 === 1) ? 'edit-match-winner-2' : null;
+      if (currentWinnerInput) document.getElementById(currentWinnerInput).checked = true;
+      else { document.getElementById('edit-match-winner-1').checked = false; document.getElementById('edit-match-winner-2').checked = false; }
+    }
+  } else {
+    if (scoreRow) scoreRow.style.display = '';
+    if (winnerRow) winnerRow.style.display = 'none';
+    document.getElementById('edit-match-s1').value = s1 ?? '';
+    document.getElementById('edit-match-s2').value = s2 ?? '';
+  }
 
   openModal('modal-edit-match');
 }
@@ -217,15 +236,25 @@ async function saveEditMatch() {
   const matchId = document.getElementById('edit-match-id').value;
   const p1Id    = document.getElementById('edit-match-p1-id').value;
   const p2Id    = document.getElementById('edit-match-p2-id').value;
-  const s1      = parseInt(document.getElementById('edit-match-s1').value);
-  const s2      = parseInt(document.getElementById('edit-match-s2').value);
   const mType   = document.getElementById('edit-match-type').value;
 
-  if (isNaN(s1)||isNaN(s2)) { showToast('Ingresa ambos scores'); return; }
-  if (s1===s2)               { showToast('No puede haber empate'); return; }
+  let winnerId, loserId, s1, s2;
 
-  const winnerId = s1>s2 ? p1Id : p2Id;
-  const loserId  = s1>s2 ? p2Id : p1Id;
+  if (mType === 'commander1v1') {
+    // Mejor de 1: el ganador se elige directamente con radios
+    const p1Checked = document.getElementById('edit-match-winner-1')?.checked;
+    const p2Checked = document.getElementById('edit-match-winner-2')?.checked;
+    if (!p1Checked && !p2Checked) { showToast('Selecciona quién ganó'); return; }
+    winnerId = p1Checked ? p1Id : p2Id;
+    loserId  = p1Checked ? p2Id : p1Id;
+  } else {
+    s1 = parseInt(document.getElementById('edit-match-s1').value);
+    s2 = parseInt(document.getElementById('edit-match-s2').value);
+    if (isNaN(s1)||isNaN(s2)) { showToast('Ingresa ambos scores'); return; }
+    if (s1===s2)               { showToast('No puede haber empate'); return; }
+    winnerId = s1>s2 ? p1Id : p2Id;
+    loserId  = s1>s2 ? p2Id : p1Id;
+  }
 
   // Obtener match anterior para revertir puntos
   const { data: oldMatch } = await _supabase.from('matches').select('*').eq('id', matchId).single();
@@ -238,13 +267,36 @@ async function saveEditMatch() {
 
   // Actualizar match
   await _supabase.from('matches').update({
-    score_p1: s1, score_p2: s2,
+    ...(mType === 'commander1v1' ? {} : { score_p1: s1, score_p2: s2 }),
     winner_id: winnerId,
     is_complete: true
   }).eq('id', matchId);
 
   // Revertir y re-aplicar puntos según formato
-  if (mType === 'swiss' || mType === 'beyrr') {
+  if (mType === 'commander1v1') {
+    // Bo1: solo wins/losses + 3pts por victoria, sin game_wins/game_losses
+    if (oldWinnerId && oldWinnerId !== winnerId) {
+      const oldW = tournamentPlayers.find(p=>p.id===oldWinnerId);
+      const oldL = tournamentPlayers.find(p=>p.id===oldLoserId);
+      if (oldW) await _supabase.from('players').update({
+        points: Math.max(0,(oldW.points||0)-3),
+        wins:   Math.max(0,(oldW.wins||0)-1)
+      }).eq('id',oldW.id);
+      if (oldL) await _supabase.from('players').update({
+        losses: Math.max(0,(oldL.losses||0)-1)
+      }).eq('id',oldL.id);
+
+      const newW = tournamentPlayers.find(p=>p.id===winnerId);
+      const newL = tournamentPlayers.find(p=>p.id===loserId);
+      if (newW) await _supabase.from('players').update({
+        points: (newW.points||0)+3,
+        wins:   (newW.wins||0)+1
+      }).eq('id',newW.id);
+      if (newL) await _supabase.from('players').update({
+        losses: (newL.losses||0)+1
+      }).eq('id',newL.id);
+    }
+  } else if (mType === 'swiss' || mType === 'beyrr') {
     // Revertir ganador anterior
     const oldW = tournamentPlayers.find(p=>p.id===oldWinnerId);
     const oldL = tournamentPlayers.find(p=>p.id===oldLoserId);
