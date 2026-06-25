@@ -500,14 +500,33 @@ async function reportC1v1Winner(key) {
   if (error) { showToast('Error: '+error.message); return; }
   if (!updated?.length) { showToast('Este resultado ya fue confirmado'); return; }
 
-  const winner = tournamentPlayers.find(p => p.id === winnerId);
-  const loser = tournamentPlayers.find(p => p.id === loserId);
-  if (winner) await _supabase.from('players').update({
-    wins: (winner.wins||0)+1, points: (winner.points||0)+3
-  }).eq('id', winnerId);
-  if (loser) await _supabase.from('players').update({
-    losses: (loser.losses||0)+1
-  }).eq('id', loserId);
+  // Leer datos FRESCOS de la DB (no confiar en tournamentPlayers que puede estar desfasado)
+  const { data: freshPlayers, error: fetchErr } = await _supabase
+    .from('players').select('id, wins, losses, points')
+    .in('id', [winnerId, loserId]);
+
+  if (fetchErr || !freshPlayers?.length) {
+    showToast('⚠️ Resultado guardado, pero no se pudieron actualizar los puntos. Avisa al admin.');
+  } else {
+    const winner = freshPlayers.find(p => p.id === winnerId);
+    const loser = freshPlayers.find(p => p.id === loserId);
+
+    if (winner) {
+      await _supabase.from('players').update({
+        wins: (winner.wins||0)+1, points: (winner.points||0)+3
+      }).eq('id', winnerId);
+    } else {
+      console.error('reportC1v1Winner: no se encontró al ganador en DB', winnerId);
+    }
+
+    if (loser) {
+      await _supabase.from('players').update({
+        losses: (loser.losses||0)+1
+      }).eq('id', loserId);
+    } else {
+      console.error('reportC1v1Winner: no se encontró al perdedor en DB', loserId);
+    }
+  }
 
   AudioFX.roundEnd();
   showToast(`🏆 ${winnerName} gana`);
