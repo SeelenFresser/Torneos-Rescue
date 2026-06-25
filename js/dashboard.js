@@ -257,6 +257,7 @@ function goToDashboard() {
   stopRealtimeSubscription();
   clearInterval(window._swissPollTimer);
   if (typeof stopTimerSubscription === 'function') stopTimerSubscription();
+  if (typeof stopC1v1Tracker === 'function') stopC1v1Tracker();
   showScreen('screen-dashboard');
   loadDashboard();
 }
