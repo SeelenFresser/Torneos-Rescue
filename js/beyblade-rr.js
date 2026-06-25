@@ -284,18 +284,37 @@ async function confirmBeyRRMatch(matchId, p1Id, p2Id) {
     if (error) { showToast('Error: '+error.message); return; }
     if (!updated?.length) { showToast('Este resultado ya fue confirmado'); return; }
 
-    const winner = tournamentPlayers.find(p=>p.id===winnerId);
-    const loser  = tournamentPlayers.find(p=>p.id===loserId);
-    if (winner) await _supabase.from('players').update({
-      wins: (winner.wins||0)+1, points: (winner.points||0)+3,
-      game_wins: (winner.game_wins||0)+(winnerId===p1Id?s1:s2),
-      game_losses: (winner.game_losses||0)+(winnerId===p1Id?s2:s1)
-    }).eq('id',winnerId);
-    if (loser) await _supabase.from('players').update({
-      losses: (loser.losses||0)+1,
-      game_wins: (loser.game_wins||0)+(loserId===p1Id?s1:s2),
-      game_losses: (loser.game_losses||0)+(loserId===p1Id?s2:s1)
-    }).eq('id',loserId);
+    // Leer datos FRESCOS de la DB — no confiar en tournamentPlayers que puede estar desfasado
+    const { data: freshPlayers, error: fetchErr } = await _supabase
+      .from('players').select('id, wins, losses, points, game_wins, game_losses')
+      .in('id', [winnerId, loserId]);
+
+    if (fetchErr || !freshPlayers?.length) {
+      showToast('⚠️ Resultado guardado, pero no se pudieron actualizar los puntos. Avisa al admin.');
+    } else {
+      const winner = freshPlayers.find(p=>p.id===winnerId);
+      const loser  = freshPlayers.find(p=>p.id===loserId);
+
+      if (winner) {
+        await _supabase.from('players').update({
+          wins: (winner.wins||0)+1, points: (winner.points||0)+3,
+          game_wins: (winner.game_wins||0)+(winnerId===p1Id?s1:s2),
+          game_losses: (winner.game_losses||0)+(winnerId===p1Id?s2:s1)
+        }).eq('id',winnerId);
+      } else {
+        console.error('confirmBeyRRMatch: no se encontró al ganador en DB', winnerId);
+      }
+
+      if (loser) {
+        await _supabase.from('players').update({
+          losses: (loser.losses||0)+1,
+          game_wins: (loser.game_wins||0)+(loserId===p1Id?s1:s2),
+          game_losses: (loser.game_losses||0)+(loserId===p1Id?s2:s1)
+        }).eq('id',loserId);
+      } else {
+        console.error('confirmBeyRRMatch: no se encontró al perdedor en DB', loserId);
+      }
+    }
 
     AudioFX.roundEnd();
     showToast('Resultado guardado ✓');
