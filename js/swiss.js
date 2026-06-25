@@ -495,9 +495,16 @@ async function giveBYEPoints() {
     .is('player2_id', null)
     .eq('bye_points_given', false);
 
-  for (const m of (byeMatches || [])) {
-    const p = tournamentPlayers.find(p => p.id === m.player1_id);
-    if (!p) continue;
+  if (!byeMatches?.length) return;
+
+  // Leer datos FRESCOS de la DB para todos los jugadores con BYE de una sola vez
+  const byePlayerIds = byeMatches.map(m => m.player1_id);
+  const { data: freshByePlayers } = await _supabase
+    .from('players').select('id, wins, points, game_wins').in('id', byePlayerIds);
+
+  for (const m of byeMatches) {
+    const p = freshByePlayers?.find(p => p.id === m.player1_id);
+    if (!p) { console.error('giveBYEPoints: no se encontró jugador en DB', m.player1_id); continue; }
     await _supabase.from('players').update({
       wins:      (p.wins      || 0) + 1,
       points:    (p.points    || 0) + 3,
