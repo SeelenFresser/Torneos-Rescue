@@ -210,13 +210,20 @@ async function generateNextWeek() {
 
   await _supabase.from('matches').insert(inserts);
 
-  // Dar punto de asistencia + BYE automático
-  for (const pair of weekPairings) {
-    if (!pair.p2) {
-      const p = players.find(p => p.id === pair.p1);
-      if (p) await _supabase.from('players').update({
-        points: (p.points || 0) + 1 // 1pt asistencia BYE
-      }).eq('id', p.id);
+  // Dar punto de asistencia + BYE automático — leer datos FRESCOS de la DB
+  const byePlayerIds = weekPairings.filter(pair => !pair.p2).map(pair => pair.p1);
+  if (byePlayerIds.length) {
+    const { data: freshByePlayers } = await _supabase
+      .from('players').select('id, points').in('id', byePlayerIds);
+
+    for (const pair of weekPairings) {
+      if (!pair.p2) {
+        const p = freshByePlayers?.find(p => p.id === pair.p1);
+        if (p) await _supabase.from('players').update({
+          points: (p.points || 0) + 1 // 1pt asistencia BYE
+        }).eq('id', p.id);
+        else console.error('generateNextWeek (BYE): no se encontró jugador en DB', pair.p1);
+      }
     }
   }
 
@@ -317,8 +324,13 @@ async function confirmLeagueMatch(matchId, p1Id, p2Id) {
   }).eq('id', matchId);
 
   // Puntos: asistencia (1pt cada uno) + victoria (3pts ganador)
-  const p1 = tournamentPlayers.find(p=>p.id===p1Id);
-  const p2 = tournamentPlayers.find(p=>p.id===p2Id);
+  // Leer datos FRESCOS de la DB — no confiar en tournamentPlayers que puede estar desfasado
+  const { data: freshLeaguePlayers } = await _supabase
+    .from('players').select('id, points, wins, losses, game_wins, game_losses')
+    .in('id', [p1Id, p2Id]);
+
+  const p1 = freshLeaguePlayers?.find(p=>p.id===p1Id);
+  const p2 = freshLeaguePlayers?.find(p=>p.id===p2Id);
 
   if (p1) await _supabase.from('players').update({
     points: (p1.points||0) + 1 + (p1Id===winnerId?3:0), // 1pt asistencia + 3pt si gana
@@ -327,6 +339,7 @@ async function confirmLeagueMatch(matchId, p1Id, p2Id) {
     game_wins:   (p1.game_wins||0)   + s1,
     game_losses: (p1.game_losses||0) + s2
   }).eq('id', p1.id);
+  else console.error('confirmLeagueMatch: no se encontró player1 en DB', p1Id);
 
   if (p2) await _supabase.from('players').update({
     points: (p2.points||0) + 1 + (p2Id===winnerId?3:0),
@@ -335,6 +348,7 @@ async function confirmLeagueMatch(matchId, p1Id, p2Id) {
     game_wins:   (p2.game_wins||0)   + s2,
     game_losses: (p2.game_losses||0) + s1
   }).eq('id', p2.id);
+  else console.error('confirmLeagueMatch: no se encontró player2 en DB', p2Id);
 
   AudioFX.tap();
   showToast('Resultado confirmado ✓');
