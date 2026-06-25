@@ -115,12 +115,16 @@ async function removePlayer(playerId) {
           is_complete: true
         }).eq('id', m.id);
 
-        const opponent = tournamentPlayers.find(p => p.id === opponentId);
-        if (opponent) {
+        // Leer datos FRESCOS de la DB — no confiar en tournamentPlayers que puede estar desfasado
+        const { data: freshOpponent } = await _supabase
+          .from('players').select('id, wins, points').eq('id', opponentId).single();
+        if (freshOpponent) {
           await _supabase.from('players').update({
-            wins: (opponent.wins || 0) + 1,
-            points: (opponent.points || 0) + 3
+            wins: (freshOpponent.wins || 0) + 1,
+            points: (freshOpponent.points || 0) + 3
           }).eq('id', opponentId);
+        } else {
+          console.error('removePlayer: no se encontró al oponente en DB', opponentId);
         }
       } else {
         // Era un BYE — simplemente borrar el match
@@ -272,75 +276,92 @@ async function saveEditMatch() {
     is_complete: true
   }).eq('id', matchId);
 
+  // Leer datos FRESCOS de la DB para los hasta 4 jugadores involucrados
+  // (oldWinner/oldLoser/newWinner/newLoser — normalmente son solo p1Id/p2Id)
+  const involvedIds = [...new Set([oldWinnerId, oldLoserId, winnerId, loserId].filter(Boolean))];
+  const { data: freshInvolved } = await _supabase
+    .from('players').select('*').in('id', involvedIds);
+  const getFresh = (id) => freshInvolved?.find(p => p.id === id);
+
   // Revertir y re-aplicar puntos según formato
   if (mType === 'commander1v1') {
     // Bo1: solo wins/losses + 3pts por victoria, sin game_wins/game_losses
     if (oldWinnerId && oldWinnerId !== winnerId) {
-      const oldW = tournamentPlayers.find(p=>p.id===oldWinnerId);
-      const oldL = tournamentPlayers.find(p=>p.id===oldLoserId);
+      const oldW = getFresh(oldWinnerId);
+      const oldL = getFresh(oldLoserId);
       if (oldW) await _supabase.from('players').update({
         points: Math.max(0,(oldW.points||0)-3),
         wins:   Math.max(0,(oldW.wins||0)-1)
       }).eq('id',oldW.id);
+      else console.error('saveEditMatch: no se encontró oldWinner en DB', oldWinnerId);
       if (oldL) await _supabase.from('players').update({
         losses: Math.max(0,(oldL.losses||0)-1)
       }).eq('id',oldL.id);
+      else console.error('saveEditMatch: no se encontró oldLoser en DB', oldLoserId);
 
-      const newW = tournamentPlayers.find(p=>p.id===winnerId);
-      const newL = tournamentPlayers.find(p=>p.id===loserId);
+      const newW = getFresh(winnerId);
+      const newL = getFresh(loserId);
       if (newW) await _supabase.from('players').update({
         points: (newW.points||0)+3,
         wins:   (newW.wins||0)+1
       }).eq('id',newW.id);
+      else console.error('saveEditMatch: no se encontró newWinner en DB', winnerId);
       if (newL) await _supabase.from('players').update({
         losses: (newL.losses||0)+1
       }).eq('id',newL.id);
+      else console.error('saveEditMatch: no se encontró newLoser en DB', loserId);
     }
   } else if (mType === 'swiss' || mType === 'beyrr') {
     // Revertir ganador anterior
-    const oldW = tournamentPlayers.find(p=>p.id===oldWinnerId);
-    const oldL = tournamentPlayers.find(p=>p.id===oldLoserId);
+    const oldW = getFresh(oldWinnerId);
+    const oldL = getFresh(oldLoserId);
     if (oldW) await _supabase.from('players').update({
       points: Math.max(0,(oldW.points||0)-3),
       wins:   Math.max(0,(oldW.wins||0)-1),
       game_wins:   Math.max(0,(oldW.game_wins||0)-(oldMatch.player1_id===oldWinnerId?oldS1:oldS2)),
       game_losses: Math.max(0,(oldW.game_losses||0)-(oldMatch.player1_id===oldWinnerId?oldS2:oldS1))
     }).eq('id',oldW.id);
+    else console.error('saveEditMatch: no se encontró oldWinner en DB', oldWinnerId);
     if (oldL) await _supabase.from('players').update({
       losses: Math.max(0,(oldL.losses||0)-1),
       game_wins:   Math.max(0,(oldL.game_wins||0)-(oldMatch.player1_id===oldLoserId?oldS1:oldS2)),
       game_losses: Math.max(0,(oldL.game_losses||0)-(oldMatch.player1_id===oldLoserId?oldS2:oldS1))
     }).eq('id',oldL.id);
+    else console.error('saveEditMatch: no se encontró oldLoser en DB', oldLoserId);
 
     // Aplicar nuevo resultado
-    const newW = tournamentPlayers.find(p=>p.id===winnerId);
-    const newL = tournamentPlayers.find(p=>p.id===loserId);
+    const newW = getFresh(winnerId);
+    const newL = getFresh(loserId);
     if (newW) await _supabase.from('players').update({
       points: (newW.points||0)+3,
       wins:   (newW.wins||0)+1,
       game_wins:   (newW.game_wins||0)+(winnerId===p1Id?s1:s2),
       game_losses: (newW.game_losses||0)+(winnerId===p1Id?s2:s1)
     }).eq('id',newW.id);
+    else console.error('saveEditMatch: no se encontró newWinner en DB', winnerId);
     if (newL) await _supabase.from('players').update({
       losses: (newL.losses||0)+1,
       game_wins:   (newL.game_wins||0)+(loserId===p1Id?s1:s2),
       game_losses: (newL.game_losses||0)+(loserId===p1Id?s2:s1)
     }).eq('id',newL.id);
+    else console.error('saveEditMatch: no se encontró newLoser en DB', loserId);
 
   } else if (mType === 'league') {
     // Liga: revertir 1pt asistencia + 3pt victoria, re-aplicar
-    const oldW = tournamentPlayers.find(p=>p.id===oldWinnerId);
-    const oldL = tournamentPlayers.find(p=>p.id===oldLoserId);
+    const oldW = getFresh(oldWinnerId);
+    const oldL = getFresh(oldLoserId);
     if (oldW) await _supabase.from('players').update({
       points: Math.max(0,(oldW.points||0)-3),
       wins:   Math.max(0,(oldW.wins||0)-1)
     }).eq('id',oldW.id);
+    else console.error('saveEditMatch: no se encontró oldWinner en DB', oldWinnerId);
     if (oldL) await _supabase.from('players').update({
       losses: Math.max(0,(oldL.losses||0)-1)
     }).eq('id',oldL.id);
+    else console.error('saveEditMatch: no se encontró oldLoser en DB', oldLoserId);
 
-    const newW = tournamentPlayers.find(p=>p.id===winnerId);
-    const newL = tournamentPlayers.find(p=>p.id===loserId);
+    const newW = getFresh(winnerId);
+    const newL = getFresh(loserId);
     if (newW) await _supabase.from('players').update({
       points: (newW.points||0)+3,
       wins:   (newW.wins||0)+1
@@ -397,16 +418,20 @@ async function openEditPodModal(podIdx) {
   const playerIds = JSON.parse(s.player_ids||'[]');
   const resultData = s.result_data ? JSON.parse(s.result_data) : {};
 
-  // Revertir puntos
+  // Revertir puntos — leer datos FRESCOS de la DB
   const ptsSystem = currentTournament.points_system||'standard';
   const isCEDH = ptsSystem==='cedh';
   const podSize = playerIds.length;
 
+  const { data: freshPodPlayers } = await _supabase
+    .from('players').select('id, points, wins').in('id', playerIds);
+
   for (const pid of playerIds) {
     const r = resultData[pid]||{};
     const pts = isCEDH ? (r.kills||0)+(r.place===1?1:0) : getPts(ptsSystem,r.place||99,podSize);
-    const dbPlayer = tournamentPlayers.find(p=>p.id===pid);
-    if (dbPlayer && pts>0) {
+    const dbPlayer = freshPodPlayers?.find(p=>p.id===pid);
+    if (!dbPlayer) { console.error('openEditPodModal: no se encontró jugador en DB', pid); continue; }
+    if (pts>0) {
       await _supabase.from('players').update({
         points: Math.max(0,(dbPlayer.points||0)-pts),
         wins:   Math.max(0,(dbPlayer.wins||0)-(r.place===1?1:0))
