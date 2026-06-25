@@ -297,14 +297,17 @@ function renderC1v1MatchCard(m, owner, active) {
 
   const w1 = m.is_complete && m.winner_id === m.player1_id ? 'winner' : '';
   const w2 = m.is_complete && m.winner_id === m.player2_id ? 'winner' : '';
+  const s1Marker = m.winner_id === m.player1_id ? 1 : null;
+  const s2Marker = m.winner_id === m.player2_id ? 1 : null;
 
   return `<div class="match-card" style="margin-bottom:8px;flex-wrap:wrap">
     <div class="match-player ${w1}">${escHtml(m.player1_name)}</div>
     <div class="match-vs">vs</div>
     <div class="match-player ${w2}">${escHtml(m.player2_name)}</div>
-    <div class="match-actions" style="width:100%;margin-top:6px;display:flex;gap:6px;justify-content:flex-end">
+    <div class="match-actions" style="width:100%;margin-top:6px;display:flex;gap:6px;justify-content:flex-end;align-items:center">
       ${m.is_complete
-        ? `<span class="pill pill-w">🏆 ${escHtml(m.winner_id === m.player1_id ? m.player1_name : m.player2_name)}</span>`
+        ? `<span class="pill pill-w">🏆 ${escHtml(m.winner_id === m.player1_id ? m.player1_name : m.player2_name)}</span>
+           ${owner ? `<button class="btn btn-xs btn-ghost" onclick="openEditMatchModal('${m.id}','${m.player1_id}','${m.player2_id}','${escHtml(m.player1_name).replace(/'/g,"\\'")}','${escHtml(m.player2_name).replace(/'/g,"\\'")}',${s1Marker},${s2Marker},'commander1v1')">✏️</button>` : ''}`
         : owner && active
         ? `<button class="btn btn-sm btn-primary" onclick="openC1v1LifeTracker('${m.id}')">❤️ Abrir contador de vida</button>`
         : '<span style="color:var(--muted);font-size:12px">Pendiente</span>'}
