@@ -176,6 +176,18 @@
   <div class="container" id="tournament-content"></div>
 </div>
 
+<!-- COMMANDER 1v1 LIFE TRACKER -->
+<div id="screen-c1v1-tracker" class="screen">
+  <div class="navbar">
+    <button class="btn btn-ghost btn-sm" onclick="stopC1v1Tracker();showScreen('screen-tournament')">← Volver</button>
+    <div class="nav-logo-text" style="color:var(--magic);font-weight:800">❤️ Commander 1v1</div>
+    <div style="width:60px"></div>
+  </div>
+  <div style="padding:12px;max-width:560px;margin:0 auto;overflow-y:auto;height:calc(100vh - 56px)">
+    <div id="c1v1-tracker-content"></div>
+  </div>
+</div>
+
 <!-- ===================== GAME APP (player view) ===================== -->
 <!-- BEYBLADE SEASON screen -->
 <div id="screen-season" class="screen">
@@ -276,6 +288,11 @@
           <img src="img/magic-bunny-icon.png" alt="Commander" class="type-icon-img">
           <div class="type-label">Commander</div>
           <div class="type-sub">Pods de 4</div>
+        </div>
+        <div class="type-card" data-type="commander1v1" onclick="selectType('commander1v1')">
+          <img src="img/magic-bunny-icon.png" alt="Commander 1v1" class="type-icon-img">
+          <div class="type-label">Commander 1v1</div>
+          <div class="type-sub">Bo1 · 30 vidas</div>
         </div>
         <div class="type-card" data-type="standard" onclick="selectType('standard')">
           <img src="img/magic-bunny-icon.png" alt="Standard" class="type-icon-img">
@@ -625,6 +642,7 @@
 <script src="js/beyblade-rr.js"></script>
 <script src="js/commander.js"></script>
 <script src="js/swiss.js"></script>
+<script src="js/commander-1v1.js"></script>
 <script src="js/elimination.js"></script>
 <script src="js/realtime.js"></script>
 <script src="js/announce.js"></script>
