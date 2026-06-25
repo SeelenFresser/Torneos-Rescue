@@ -365,6 +365,9 @@ function renderC1v1LifeTracker() {
   if (!el || !c1v1TrackerMatch) return;
   const m = c1v1TrackerMatch;
   const owner = isOwner();
+  const myPlayerId = tournamentPlayers.find(p => p.user_id === currentUser?.id)?.id;
+  const isParticipant = myPlayerId === m.player1_id || myPlayerId === m.player2_id;
+  const canControl = owner || isParticipant; // admin o uno de los 2 jugadores de la mesa
 
   const c1 = LIFE_COLORS[0];
   const c2 = LIFE_COLORS[3];
@@ -388,15 +391,15 @@ function renderC1v1LifeTracker() {
             border-bottom:2px solid ${p.c.accent}40;width:90%;text-align:center;padding-bottom:3px">
             ${escHtml(p.name)}
           </div>
-          ${owner ? `<button onclick="changeC1v1Life('${p.key}',+1)"
+          ${canControl ? `<button onclick="changeC1v1Life('${p.key}',+1)"
             style="width:100%;padding:6px 0;background:${p.c.btnPlus}88;border:none;
             border-radius:10px;color:#fff;font-size:18px;font-weight:900;cursor:pointer">+</button>` : '<div style="height:32px"></div>'}
           <div style="font-size:${p.life>=10?'58px':'70px'};font-weight:900;color:#fff;line-height:1;
             text-shadow:0 2px 20px ${p.c.accent}80">${p.life}</div>
-          ${owner ? `<button onclick="changeC1v1Life('${p.key}',-1)"
+          ${canControl ? `<button onclick="changeC1v1Life('${p.key}',-1)"
             style="width:100%;padding:6px 0;background:${p.c.btnMinus}88;border:none;
             border-radius:10px;color:#fff;font-size:18px;font-weight:900;cursor:pointer">−</button>` : '<div></div>'}
-          ${owner ? `<div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;width:100%;margin-top:4px">
+          ${canControl ? `<div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;width:100%;margin-top:4px">
             <button onclick="changeC1v1Life('${p.key}',-5)" style="padding:5px 0;background:${p.c.btnMinus}66;
               border:none;border-radius:8px;color:${p.c.accent};font-size:11px;font-weight:700;cursor:pointer">−5</button>
             <button onclick="changeC1v1Life('${p.key}',+5)" style="padding:5px 0;background:${p.c.btnPlus}66;
@@ -409,7 +412,7 @@ function renderC1v1LifeTracker() {
             <div style="font-size:18px;font-weight:900;color:${p.dmg>=21?'#FF4444':'#fff'};text-align:center">
               ${p.dmg} <span style="font-size:11px;opacity:0.6">/21</span>
             </div>
-            ${owner ? `<div style="display:flex;justify-content:center;gap:6px;margin-top:4px">
+            ${canControl ? `<div style="display:flex;justify-content:center;gap:6px;margin-top:4px">
               <button onclick="changeC1v1CmdrDmg('${p.key}',-1)" style="padding:2px 8px;background:rgba(0,0,0,0.3);
                 border:none;border-radius:5px;color:${p.c.accent};font-size:11px;cursor:pointer">−</button>
               <button onclick="changeC1v1CmdrDmg('${p.key}',+1)" style="padding:2px 8px;background:${p.c.btnPlus}88;
@@ -424,7 +427,7 @@ function renderC1v1LifeTracker() {
         </div>`).join('')}
     </div>
 
-    ${owner ? `
+    ${canControl ? `
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px">
       <button class="btn btn-primary" onclick="reportC1v1Winner('p1')"
         style="background:${c1.bg};border-color:${c1.accent};color:${c1.accent}">
@@ -434,7 +437,10 @@ function renderC1v1LifeTracker() {
         style="background:${c2.bg};border-color:${c2.accent};color:${c2.accent}">
         ✓ Ganó ${escHtml(m.player2_name)}
       </button>
-    </div>` : ''}
+    </div>` : `
+    <div style="text-align:center;margin-top:12px;font-size:12px;color:var(--muted)">
+      👁 Solo los jugadores de esta mesa o el admin pueden modificar el contador
+    </div>`}
   `;
 }
 
