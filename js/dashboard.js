@@ -154,6 +154,9 @@ async function loadDashboard() {
   const el = document.getElementById('tournament-list');
   el.innerHTML = '<div class="empty-state">Cargando...</div>';
 
+  // Cargar torneos 2vs2 en paralelo (tabla separada) para mostrarlos en el dashboard
+  loadAndRender2v2InDashboard();
+
   const { data, error } = await _supabase
     .from('tournaments')
     .select('*')
@@ -335,4 +338,74 @@ async function finalizarTorneoDesdeInicio(tournamentId, event) {
   AudioFX.victory();
   showToast('🏆 Torneo finalizado y registrado en el Hall of Fame');
   loadDashboard();
+}
+
+// ── COMMANDER 2vs2 EN EL DASHBOARD PRINCIPAL ─────────────────
+async function loadAndRender2v2InDashboard() {
+  const el = document.getElementById('tournament-list-2v2');
+  if (!el) return;
+
+  const { data: tournaments, error } = await _supabase
+    .from('commander_2v2_tournaments')
+    .select('*')
+    .in('status', ['upcoming', 'active'])
+    .order('created_at', { ascending: false });
+
+  if (error || !tournaments?.length) {
+    el.innerHTML = '';
+    document.getElementById('section-2v2-dashboard')?.style.setProperty('display', 'none');
+    return;
+  }
+
+  document.getElementById('section-2v2-dashboard')?.style.setProperty('display', '');
+
+  // Para cada torneo, saber si el usuario actual ya está inscrito
+  const myId = currentUser?.id;
+  const cards = await Promise.all(tournaments.map(async (t) => {
+    let amIRegistered = false;
+    if (myId) {
+      const { data: existing } = await _supabase
+        .from('commander_2v2_players').select('id')
+        .eq('tournament_id', t.id).eq('user_id', myId).maybeSingle();
+      amIRegistered = !!existing;
+    }
+    return render2v2DashboardCard(t, amIRegistered);
+  }));
+
+  el.innerHTML = cards.join('');
+}
+
+function render2v2DashboardCard(t, amIRegistered) {
+  const statusLabel = t.status === 'active' ? '⚡ En curso' : '📅 Próximo — inscripciones abiertas';
+  const statusColor = t.status === 'active' ? 'var(--magic)' : 'var(--std)';
+
+  return `<div class="t-card commander" style="cursor:pointer" onclick="open2v2Detail('${t.id}')">
+    <div class="t-card-header">
+      <div class="t-card-icon"><img src="img/magic-bunny-icon.png" style="width:28px;height:28px;object-fit:contain"></div>
+      <div class="t-card-info">
+        <div class="t-card-name">${escHtml(t.name)}</div>
+        <div class="t-card-type">Commander 2vs2 · ${t.format === 'roundrobin' ? 'Round Robin' : 'Swiss'}</div>
+      </div>
+    </div>
+    <div class="t-card-footer">
+      <span style="font-size:12px;color:${statusColor}">${statusLabel}</span>
+      <span style="font-size:12px;color:var(--muted)">👥 ${t.team_count||0} equipos</span>
+    </div>
+    ${t.status === 'upcoming' ? `
+    <div style="margin-top:10px" onclick="event.stopPropagation()">
+      ${amIRegistered ? `
+        <span style="font-size:12px;color:var(--green);font-weight:700">✓ Ya estás inscrito</span>
+      ` : `
+        <button class="btn btn-primary btn-sm w-full" onclick="open2v2RegisterModal('${t.id}')">
+          ✋ Inscribirme
+        </button>
+      `}
+    </div>` : `
+    <div style="margin-top:10px" onclick="event.stopPropagation()">
+      <button class="btn btn-sm w-full" style="border-color:var(--magic);color:var(--magic)"
+        onclick="open2v2Detail('${t.id}')">
+        Ver torneo →
+      </button>
+    </div>`}
+  </div>`;
 }
