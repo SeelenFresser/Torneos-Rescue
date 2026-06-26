@@ -100,6 +100,27 @@ async function onAuthSuccess(user) {
 
   showScreen('screen-dashboard');
   loadDashboard();
+
+  // Deep link: si la URL trae ?torneo=ID o ?t2v2=ID, abrir ese torneo directamente
+  handleTournamentDeepLink();
+}
+
+function handleTournamentDeepLink() {
+  const params = new URLSearchParams(window.location.search);
+  const tournamentId = params.get('torneo');
+  const t2v2Id = params.get('t2v2');
+
+  if (tournamentId) {
+    window.history.replaceState({}, document.title, window.location.pathname);
+    setTimeout(() => {
+      if (typeof openTournament === 'function') openTournament(tournamentId);
+    }, 300);
+  } else if (t2v2Id) {
+    window.history.replaceState({}, document.title, window.location.pathname);
+    setTimeout(() => {
+      if (typeof open2v2Detail === 'function') open2v2Detail(t2v2Id);
+    }, 300);
+  }
 }
 
 async function initAuth() {
