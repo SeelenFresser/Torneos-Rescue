@@ -590,3 +590,29 @@ function renderAddPlayerRow(nameId, beyId) {
     <button class="btn" onclick="addPlayer('${nameId}'${beyId ? `,'${beyId}'` : ''})">+ Agregar</button>
   </div>`;
 }
+
+// ── COMPARTIR TORNEO ───────────────────────────────────────
+async function shareCurrentTournament() {
+  if (!currentTournament?.id) { showToast('No hay torneo abierto'); return; }
+
+  const url = `${window.location.origin}${window.location.pathname}?torneo=${currentTournament.id}`;
+  const title = currentTournament.name || 'Torneo Rescue TCG';
+  const text = `¡Únete a "${title}" en Rescue TCG Torneos!`;
+
+  if (navigator.share) {
+    try {
+      await navigator.share({ title, text, url });
+      return;
+    } catch (e) {
+      if (e.name === 'AbortError') return; // el usuario canceló el share nativo
+      // si falla por otro motivo, cae al copy fallback abajo
+    }
+  }
+
+  try {
+    await navigator.clipboard.writeText(url);
+    showToast('🔗 Link copiado al portapapeles');
+  } catch (e) {
+    showToast('No se pudo copiar el link');
+  }
+}
