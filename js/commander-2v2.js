@@ -1160,3 +1160,28 @@ async function closeTrackerAndReport(matchId, winnerTeamId, winnerTeamName) {
   showScreen('screen-2v2-detail');
   switch2v2Tab('rondas');
 }
+
+// ── COMPARTIR TORNEO 2vs2 ──────────────────────────────────
+async function shareCurrent2v2Tournament() {
+  if (!c2v2Tournament?.id) { showToast('No hay torneo abierto'); return; }
+
+  const url = `${window.location.origin}${window.location.pathname}?t2v2=${c2v2Tournament.id}`;
+  const title = c2v2Tournament.name || 'Torneo Commander 2vs2';
+  const text = `¡Únete a "${title}" — Commander 2vs2 en Rescue TCG!`;
+
+  if (navigator.share) {
+    try {
+      await navigator.share({ title, text, url });
+      return;
+    } catch (e) {
+      if (e.name === 'AbortError') return;
+    }
+  }
+
+  try {
+    await navigator.clipboard.writeText(url);
+    showToast('🔗 Link copiado al portapapeles');
+  } catch (e) {
+    showToast('No se pudo copiar el link');
+  }
+}
