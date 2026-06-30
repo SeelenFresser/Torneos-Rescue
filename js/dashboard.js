@@ -127,6 +127,10 @@ async function deleteTournament(id, event) {
   event.stopPropagation();
   if (!confirm('¿Eliminar este torneo? Se borrarán todos los jugadores y partidos.')) return;
 
+  // Desvincular de temporadas de Liga Beyblade si existe referencia
+  await _supabase.from('beyblade_season_rounds')
+    .update({ tournament_id: null }).eq('tournament_id', id);
+
   // Borrar en orden por las foreign keys
   await _supabase.from('pod_sessions').delete().eq('tournament_id', id);
   await _supabase.from('matches').delete().eq('tournament_id', id);
