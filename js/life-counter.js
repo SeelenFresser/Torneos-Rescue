@@ -1,356 +1,324 @@
 // ═══════════════════════════════════════════════════════════════════
-// MTG LIFE COUNTER — Rescue TCG
-// Pantalla completa integrada en la app principal
-// Soporta 1-8 jugadores, vida configurable, rotación por posición
+// MTG LIFE COUNTER v3 — Rescue TCG
+// Número gigante centrado, + y − a los lados, colores sólidos
+// Layout calculado en JS para 100% de pantalla siempre
 // ═══════════════════════════════════════════════════════════════════
 
 const LC_COLORS = [
-  { bg:'#1A0020', accent:'#C060FF', text:'#E8C8FF' },
-  { bg:'#001A20', accent:'#20D8FF', text:'#B0F0FF' },
-  { bg:'#200800', accent:'#FF7020', text:'#FFD0A0' },
-  { bg:'#001A08', accent:'#30E870', text:'#A0FFB8' },
-  { bg:'#1A1000', accent:'#FFD020', text:'#FFF0A0' },
-  { bg:'#1A0008', accent:'#FF3070', text:'#FFB0C8' },
-  { bg:'#000E1A', accent:'#3090FF', text:'#A8D0FF' },
-  { bg:'#0E001A', accent:'#FF60D0', text:'#FFB8F0' },
+  { bg:'#1E3A6E', accent:'#6AADFF', name:'Azul'    },
+  { bg:'#6B1040', accent:'#FF5BA0', name:'Rosa'     },
+  { bg:'#1A5C30', accent:'#45E87A', name:'Verde'    },
+  { bg:'#6B4000', accent:'#FFAA20', name:'Naranja'  },
+  { bg:'#3D1A70', accent:'#B06AFF', name:'Morado'   },
+  { bg:'#00454A', accent:'#20E8D8', name:'Cyan'     },
+  { bg:'#5C4A00', accent:'#F0D030', name:'Dorado'   },
+  { bg:'#5C1A1A', accent:'#FF5A5A', name:'Rojo'     },
 ];
 
-// Rotación de cada panel según posición (en grados)
-const LC_ROTATIONS = {
-  1:[0], 2:[180,0], 3:[180,0,0],
-  4:[180,180,0,0], 5:[180,180,180,0,0],
-  6:[180,180,180,0,0,0],
-  7:[180,180,180,180,0,0,0],
-  8:[180,180,180,180,0,0,0,0],
+// Posiciones de celdas [col, row, colSpan, rowSpan] en grilla normalizada
+const LC_LAYOUTS = {
+  1:{ cols:1,rows:1, cells:[[0,0,1,1]] },
+  2:{ cols:2,rows:1, cells:[[0,0,1,1],[1,0,1,1]] },
+  3:{ cols:2,rows:2, cells:[[0,0,2,1],[0,1,1,1],[1,1,1,1]] },
+  4:{ cols:2,rows:2, cells:[[0,0,1,1],[1,0,1,1],[0,1,1,1],[1,1,1,1]] },
+  5:{ cols:3,rows:2, cells:[[0,0,1,1],[1,0,1,1],[2,0,1,1],[0,1,2,1],[2,1,1,1]] },
+  6:{ cols:3,rows:2, cells:[[0,0,1,1],[1,0,1,1],[2,0,1,1],[0,1,1,1],[1,1,1,1],[2,1,1,1]] },
+  7:{ cols:4,rows:2, cells:[[0,0,1,1],[1,0,1,1],[2,0,1,1],[3,0,1,1],[0,1,2,1],[2,1,1,1],[3,1,1,1]] },
+  8:{ cols:4,rows:2, cells:[[0,0,1,1],[1,0,1,1],[2,0,1,1],[3,0,1,1],[0,1,1,1],[1,1,1,1],[2,1,1,1],[3,1,1,1]] },
 };
 
-// Estado del contador
-let lcState = {
-  screen: 'setup',   // 'setup' | 'game'
-  playerCount: 4,
-  startLife: 40,
-  players: [],
-  editingIdx: -1,
-  history: [],
-  future: [],
-  rollResult: null,
-  isRolling: false,
+// Fila 0 → rotado 180° (mira hacia arriba de la mesa), fila 1 → 0°
+const lcRotFor = (row, totalRows) => totalRows === 1 ? 0 : row === 0 ? 180 : 0;
+
+let lc = {
+  screen:'setup', playerCount:4, startLife:40,
+  players:[], editingIdx:-1,
+  history:[], future:[],
+  rollResult:null, isRolling:false,
 };
+let lcHold={}, lcDeltaVal={}, lcDeltaTimer={}, lcWakeLock=null;
 
-let lcHoldTimers = {};
-let lcDeltaValues = {};
-let lcDeltaTimers = {};
-let lcWakeLock = null;
-
-// ── CICLO DE VIDA ─────────────────────────────────────────────────
-
+// ── ABRIR / CERRAR ────────────────────────────────────────────────
 function openLifeCounter() {
   AudioFX && AudioFX.tap && AudioFX.tap();
+  lc.screen='setup'; lc.rollResult=null;
   showScreen('screen-life-counter');
-  lcRenderSetup();
-  // Mantener pantalla encendida
-  if (navigator.wakeLock) {
-    navigator.wakeLock.request('screen')
-      .then(lock => { lcWakeLock = lock; })
-      .catch(() => {});
-  }
+  if (navigator.wakeLock) navigator.wakeLock.request('screen').then(l=>lcWakeLock=l).catch(()=>{});
+  lcRender();
 }
-
 function closeLifeCounter() {
-  if (lcWakeLock) { lcWakeLock.release(); lcWakeLock = null; }
-  Object.values(lcHoldTimers).forEach(clearTimeout);
+  if (lcWakeLock) { lcWakeLock.release(); lcWakeLock=null; }
+  Object.values(lcHold).forEach(clearTimeout);
+  if (screen.orientation?.unlock) screen.orientation.unlock();
   goToDashboard();
 }
 
+// ── RENDER PRINCIPAL ──────────────────────────────────────────────
+function lcRender() {
+  const root = document.getElementById('lc-root');
+  if (!root) return;
+  if (lc.screen==='setup') root.innerHTML = lcSetupHTML();
+  else lcBuildGame(root);
+}
+
 // ── SETUP ─────────────────────────────────────────────────────────
+function lcSetupHTML() {
+  const counts=[1,2,3,4,5,6,7,8], lives=[20,30,40];
+  return `<div class="lcs-wrap">
+    <div class="lcs-logo">Rescue TCG</div>
+    <div class="lcs-title">Contador de Vida</div>
+    <div class="lcs-sub">Magic: The Gathering</div>
 
-function lcRenderSetup() {
-  const el = document.getElementById('lc-content');
-  if (!el) return;
-
-  const playerNums = [1,2,3,4,5,6,7,8];
-  const livesOpts = [20,30,40];
-
-  el.innerHTML = `
-    <div class="lc-setup">
-      <div class="lc-setup-header">
-        <div class="lc-logo-text">Rescue TCG</div>
-        <div class="lc-title">Contador de Vida</div>
-        <div class="lc-subtitle">Magic: The Gathering</div>
+    <div class="lcs-group">
+      <div class="lcs-label">Jugadores</div>
+      <div class="lcs-row4">
+        ${counts.map(n=>`<button class="lcs-opt${lc.playerCount===n?' lcs-on':''}"
+          onclick="lc.playerCount=${n};lcRender()">${n}</button>`).join('')}
       </div>
-
-      <div class="lc-section">
-        <div class="lc-label">Número de jugadores</div>
-        <div class="lc-btn-grid lc-players-grid">
-          ${playerNums.map(n => `
-            <button class="lc-opt-btn ${lcState.playerCount===n?'lc-active':''}"
-              onclick="lcState.playerCount=${n};lcRenderSetup()">
-              ${n}
-            </button>`).join('')}
-        </div>
-      </div>
-
-      <div class="lc-section">
-        <div class="lc-label">Vida inicial</div>
-        <div class="lc-btn-grid lc-lives-grid">
-          ${livesOpts.map(l => `
-            <button class="lc-opt-btn ${lcState.startLife===l?'lc-active':''}"
-              onclick="lcState.startLife=${l};lcRenderSetup()">
-              ${l}
-            </button>`).join('')}
-        </div>
-      </div>
-
-      <div class="lc-section">
-        <button class="lc-random-btn" onclick="lcRollRandom()"
-          ${lcState.isRolling?'disabled':''}>
-          🎲 Elegir jugador inicial
-        </button>
-        ${lcState.rollResult ? `
-          <div class="lc-roll-result">${lcState.rollResult}</div>` : ''}
-      </div>
-
-      <button class="lc-start-btn" onclick="lcStartGame()">
-        ▶ Iniciar partida
-      </button>
     </div>
-  `;
+
+    <div class="lcs-group">
+      <div class="lcs-label">Vida inicial</div>
+      <div class="lcs-row3">
+        ${lives.map(l=>`<button class="lcs-opt${lc.startLife===l?' lcs-on':''}"
+          onclick="lc.startLife=${l};lcRender()">${l}</button>`).join('')}
+      </div>
+    </div>
+
+    <button class="lcs-roll" onclick="lcRoll()">🎲 Elegir quién empieza</button>
+    ${lc.rollResult?`<div class="lcs-result">${lc.rollResult}</div>`:''}
+
+    <button class="lcs-start" onclick="lcStart()">Iniciar partida →</button>
+  </div>`;
 }
 
-function lcRollRandom() {
-  lcState.isRolling = true;
-  lcState.rollResult = null;
-  lcRenderSetup();
-
-  let count = 0;
-  const total = 18;
-  let last = 1;
-  const timer = setInterval(() => {
-    last = Math.floor(Math.random() * lcState.playerCount) + 1;
-    lcState.rollResult = `🎲 Jugador ${last}`;
-    const el = document.querySelector('.lc-roll-result');
-    if (el) el.textContent = lcState.rollResult;
-    count++;
-    if (count >= total) {
-      clearInterval(timer);
-      lcState.isRolling = false;
-      lcState.rollResult = `⚡ ¡Comienza Jugador ${last}!`;
-      lcRenderSetup();
-    }
-  }, 80);
+function lcRoll() {
+  if (lc.isRolling) return;
+  lc.isRolling=true; lc.rollResult='🎲'; lcRender();
+  let i=0, final=1;
+  const t=setInterval(()=>{
+    final=1+Math.floor(Math.random()*lc.playerCount);
+    const el=document.querySelector('.lcs-result');
+    if(el) el.textContent='🎲 Jugador '+final;
+    if(++i>=20){ clearInterval(t); lc.isRolling=false; lc.rollResult='⚡ Empieza Jugador '+final; lcRender(); }
+  },80);
 }
 
-// ── INICIAR PARTIDA ───────────────────────────────────────────────
-
-function lcStartGame() {
-  lcState.players = Array.from({length: lcState.playerCount}, (_, i) => ({
-    id: i,
-    name: `Jugador ${i+1}`,
-    life: lcState.startLife,
-    eliminated: false,
+// ── INICIAR JUEGO ─────────────────────────────────────────────────
+function lcStart() {
+  lc.players=Array.from({length:lc.playerCount},(_,i)=>({
+    id:i, name:`J${i+1}`, life:lc.startLife, eliminated:false
   }));
-  lcState.history = [];
-  lcState.future = [];
-  lcState.editingIdx = -1;
-  lcDeltaValues = {};
-  lcState.screen = 'game';
-
-  // Intentar modo landscape
-  if (screen.orientation && screen.orientation.lock) {
-    screen.orientation.lock('landscape').catch(() => {});
-  }
-
-  lcRenderGame();
+  lc.history=[]; lc.future=[]; lc.editingIdx=-1; lcDeltaVal={};
+  lc.screen='game';
+  if (screen.orientation?.lock) screen.orientation.lock('landscape').catch(()=>{});
+  lcBuildGame(document.getElementById('lc-root'));
 }
 
-// ── RENDER GAME ───────────────────────────────────────────────────
+// ── BUILD GAME — posicionamiento absoluto en píxeles ──────────────
+function lcBuildGame(root) {
+  if (!root) return;
+  const W=root.clientWidth||window.innerWidth;
+  const H=root.clientHeight||window.innerHeight;
+  const n=lc.players.length;
+  const layout=LC_LAYOUTS[n]||LC_LAYOUTS[4];
+  const topH=42;
+  const arenaH=H-topH;
+  const cellW=W/layout.cols;
+  const cellH=arenaH/layout.rows;
 
-function lcRenderGame() {
-  const el = document.getElementById('lc-content');
-  if (!el) return;
+  // ── TOPBAR
+  let html=`<div class="lcg-bar" style="height:${topH}px;line-height:${topH}px">
+    <button class="lcg-tbtn" onclick="lcUndo()">↩</button>
+    <button class="lcg-tbtn" onclick="lcRedo()">↪</button>
+    <span class="lcg-title">⚔️ MTG</span>
+    <button class="lcg-tbtn" onclick="lcReset()">↺</button>
+    <button class="lcg-tbtn" onclick="lc.screen='setup';lcRender()">⚙</button>
+    <button class="lcg-tbtn" onclick="closeLifeCounter()">✕</button>
+  </div>
+  <div style="position:absolute;top:${topH}px;left:0;right:0;bottom:0">`;
 
-  const n = lcState.players.length;
-  const rots = LC_ROTATIONS[n] || LC_ROTATIONS[4];
+  // ── PANELES
+  layout.cells.forEach(([col,row,cs,rs],i)=>{
+    const p=lc.players[i]; if(!p) return;
+    const c=LC_COLORS[i%LC_COLORS.length];
+    const x=col*cellW, y=row*cellH;
+    const w=cellW*cs, h=cellH*rs;
+    const rot=lcRotFor(row,layout.rows);
 
-  const panels = lcState.players.map((p, i) => {
-    const rot = rots[i] || 0;
-    const c = LC_COLORS[i % LC_COLORS.length];
-    const lifeColor = p.life <= 5 ? '#FF3D3D'
-                    : p.life <= 10 ? '#FF8020'
-                    : c.accent;
+    // Tamaños proporcionales al panel
+    const numSize = Math.min(w*.55, h*.58);   // número enorme
+    const btnSize = Math.min(w*.18, h*.28);   // botones ± laterales
+    const btnFont = btnSize*.58;
+    const nameSize= Math.min(w,h)*.055;
+    const lifeColor= p.life<=5?'#FF3030':p.life<=10?'#FF7020':c.accent;
 
-    return `
-      <div class="lc-panel ${p.eliminated?'lc-eliminated':''} lc-p${n}"
-           style="background:${c.bg};border-color:${c.accent}22">
-        <div class="lc-panel-inner" style="transform:rotate(${rot}deg)">
-          <div class="lc-name-row">
-            <span class="lc-name" style="color:${c.text}">${escHtml(p.name)}</span>
-            <button class="lc-edit-btn" onclick="lcOpenEdit(${i})" style="color:${c.accent}">✏️</button>
-          </div>
+    // Bordes entre paneles
+    const borderStyle=`border:1px solid rgba(0,0,0,.3)`;
 
-          <div class="lc-life-wrap">
-            <div class="lc-life" id="lc-life-${i}" style="color:${lifeColor}">${p.life}</div>
-            <div class="lc-delta" id="lc-delta-${i}"></div>
-          </div>
+    html+=`
+    <div class="lcg-panel${p.eliminated?' lcg-elim':''}"
+      style="position:absolute;left:${x}px;top:${y}px;width:${w}px;height:${h}px;
+             background:${c.bg};${borderStyle};overflow:hidden">
 
-          ${p.eliminated ? `<div class="lc-elim-badge">ELIMINADO</div>` : ''}
+      <!-- contenido rotado -->
+      <div style="position:absolute;inset:0;transform:rotate(${rot}deg);
+                  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:${h*.02}px">
 
-          <div class="lc-btns">
-            <button class="lc-life-btn lc-minus" style="color:${c.accent};border-color:${c.accent}"
-              onclick="lcChange(${i},-1)"
-              onpointerdown="lcStartHold(${i},-1)"
-              onpointerup="lcStopHold(${i})"
-              onpointerleave="lcStopHold(${i})">−</button>
-            <button class="lc-life-btn lc-plus" style="color:${c.accent};border-color:${c.accent}"
-              onclick="lcChange(${i},+1)"
-              onpointerdown="lcStartHold(${i},+1)"
-              onpointerup="lcStopHold(${i})"
-              onpointerleave="lcStopHold(${i})">+</button>
-          </div>
+        <!-- nombre + editar (arriba) -->
+        <div style="display:flex;align-items:center;gap:6px;opacity:.8">
+          <span style="font-size:${nameSize}px;font-weight:800;color:${c.accent};
+                       max-width:${w*.6}px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(p.name)}</span>
+          <button onclick="lcOpenEdit(${i})"
+            style="background:transparent;border:none;font-size:${nameSize*.9}px;
+                   cursor:pointer;color:${c.accent};opacity:.55;padding:0 2px">✏️</button>
         </div>
-      </div>`;
-  }).join('');
 
-  const editModal = lcState.editingIdx >= 0 ? lcEditModal() : '';
+        <!-- fila: − número + -->
+        <div style="display:flex;align-items:center;justify-content:center;
+                    gap:${w*.04}px;width:100%">
 
-  el.innerHTML = `
-    <div class="lc-topbar">
-      <button class="lc-top-btn" onclick="lcUndo()">↩</button>
-      <button class="lc-top-btn" onclick="lcRedo()">↪</button>
-      <span class="lc-top-title">⚔️ MTG</span>
-      <button class="lc-top-btn" onclick="lcReset()">↺ Reiniciar</button>
-      <button class="lc-top-btn" onclick="lcBackToSetup()">⚙</button>
-    </div>
-    <div class="lc-grid lc-grid-${n}">${panels}</div>
-    ${editModal}
-  `;
+          <button class="lcg-lb"
+            style="width:${btnSize}px;height:${btnSize}px;font-size:${btnFont}px;
+                   border-color:${c.accent};color:${c.accent}"
+            onclick="lcChange(${i},-1)"
+            onpointerdown="lcStartHold(${i},-1)"
+            onpointerup="lcStopHold(${i})"
+            onpointercancel="lcStopHold(${i})"
+            onpointerleave="lcStopHold(${i})">−</button>
+
+          <div style="position:relative;display:flex;align-items:center;justify-content:center;
+                      min-width:${numSize*.8}px">
+            <span id="lcn${i}"
+              style="font-size:${numSize}px;font-weight:900;color:${lifeColor};
+                     line-height:1;letter-spacing:-3px;
+                     text-shadow:0 2px 20px ${c.accent}40;
+                     transition:color .2s">${p.life}</span>
+            <span id="lcd${i}"
+              style="position:absolute;top:${-numSize*.15}px;right:${-numSize*.35}px;
+                     font-size:${numSize*.2}px;font-weight:800;opacity:0;
+                     pointer-events:none"></span>
+          </div>
+
+          <button class="lcg-lb"
+            style="width:${btnSize}px;height:${btnSize}px;font-size:${btnFont}px;
+                   border-color:${c.accent};color:${c.accent}"
+            onclick="lcChange(${i},+1)"
+            onpointerdown="lcStartHold(${i},+1)"
+            onpointerup="lcStopHold(${i})"
+            onpointercancel="lcStopHold(${i})"
+            onpointerleave="lcStopHold(${i})">+</button>
+        </div>
+
+        ${p.eliminated?`<div style="font-size:${nameSize}px;font-weight:800;color:#FF4040;letter-spacing:2px">ELIMINADO</div>`:''}
+      </div>
+    </div>`;
+  });
+
+  html+='</div>';
+  if (lc.editingIdx>=0) html+=lcModalHTML();
+  root.innerHTML=html;
 }
 
 // ── CAMBIO DE VIDA ────────────────────────────────────────────────
-
-function lcSaveHistory() {
-  lcState.history.push(JSON.parse(JSON.stringify(lcState.players)));
-  if (lcState.history.length > 60) lcState.history.shift();
-  lcState.future = [];
+function lcSave() {
+  lc.history.push(JSON.parse(JSON.stringify(lc.players)));
+  if(lc.history.length>60) lc.history.shift();
+  lc.future=[];
 }
 
 function lcChange(idx, delta) {
-  lcSaveHistory();
-  const p = lcState.players[idx];
-  p.life += delta;
-  p.eliminated = p.life <= 0;
+  lcSave();
+  const p=lc.players[idx];
+  p.life+=delta;
+  p.eliminated=p.life<=0;
+  const c=LC_COLORS[idx%LC_COLORS.length];
+  if(navigator.vibrate) navigator.vibrate(delta>0?15:35);
 
-  // Actualizar solo el número (sin re-render completo → sin parpadeo)
-  const lifeEl = document.getElementById('lc-life-' + idx);
-  const c = LC_COLORS[idx % LC_COLORS.length];
-  if (lifeEl) {
-    const lifeColor = p.life <= 5 ? '#FF3D3D' : p.life <= 10 ? '#FF8020' : c.accent;
-    lifeEl.textContent = p.life;
-    lifeEl.style.color = lifeColor;
-    lifeEl.classList.remove('lc-bump-up', 'lc-bump-down');
-    void lifeEl.offsetWidth;
-    lifeEl.classList.add(delta > 0 ? 'lc-bump-up' : 'lc-bump-down');
+  // Actualizar número sin re-render completo
+  const numEl=document.getElementById('lcn'+idx);
+  if(numEl){
+    const lc2=p.life<=5?'#FF3030':p.life<=10?'#FF7020':c.accent;
+    numEl.textContent=p.life;
+    numEl.style.color=lc2;
+    numEl.style.animation='none'; void numEl.offsetWidth;
+    numEl.style.animation=delta>0?'lcUp .15s ease':'lcDn .15s ease';
   }
 
   // Delta flotante
-  lcDeltaValues[idx] = (lcDeltaValues[idx] || 0) + delta;
-  clearTimeout(lcDeltaTimers[idx]);
-  lcDeltaTimers[idx] = setTimeout(() => { lcDeltaValues[idx] = 0; }, 1500);
-  const deltaEl = document.getElementById('lc-delta-' + idx);
-  if (deltaEl) {
-    const v = lcDeltaValues[idx];
-    deltaEl.textContent = (v > 0 ? '+' : '') + v;
-    deltaEl.style.color = delta > 0 ? '#30E870' : '#FF4040';
-    deltaEl.classList.remove('lc-delta-anim');
-    void deltaEl.offsetWidth;
-    deltaEl.classList.add('lc-delta-anim');
+  lcDeltaVal[idx]=(lcDeltaVal[idx]||0)+delta;
+  clearTimeout(lcDeltaTimer[idx]);
+  lcDeltaTimer[idx]=setTimeout(()=>{ lcDeltaVal[idx]=0; },1600);
+  const dEl=document.getElementById('lcd'+idx);
+  if(dEl){
+    const v=lcDeltaVal[idx];
+    dEl.textContent=(v>0?'+':'')+v;
+    dEl.style.color=delta>0?'#45E87A':'#FF5050';
+    dEl.style.animation='none'; void dEl.offsetWidth;
+    dEl.style.animation='lcDelta 1.4s ease forwards';
   }
-
-  // Panel eliminado
-  const panel = document.querySelector(`.lc-panel:nth-child(${idx+1})`);
-  if (panel) panel.classList.toggle('lc-eliminated', p.eliminated);
-
-  if (navigator.vibrate) navigator.vibrate(delta > 0 ? 15 : 35);
 }
 
-function lcStartHold(idx, delta) {
-  let speed = 400, count = 0;
-  function tick() {
-    lcChange(idx, delta);
-    count++;
-    speed = count > 8 ? 80 : count > 3 ? 180 : 350;
-    lcHoldTimers[idx] = setTimeout(tick, speed);
-  }
-  lcHoldTimers[idx] = setTimeout(tick, 600);
+function lcStartHold(idx,delta){
+  let count=0;
+  const tick=()=>{
+    lcChange(idx,delta);
+    const spd=++count>8?70:count>3?150:320;
+    lcHold[idx]=setTimeout(tick,spd);
+  };
+  lcHold[idx]=setTimeout(tick,550);
 }
+function lcStopHold(idx){ clearTimeout(lcHold[idx]); }
 
-function lcStopHold(idx) { clearTimeout(lcHoldTimers[idx]); }
-
-function lcUndo() {
-  if (!lcState.history.length) return;
-  lcState.future.push(JSON.parse(JSON.stringify(lcState.players)));
-  lcState.players = lcState.history.pop();
-  lcRenderGame();
+function lcUndo(){
+  if(!lc.history.length) return;
+  lc.future.push(JSON.parse(JSON.stringify(lc.players)));
+  lc.players=lc.history.pop();
+  lcBuildGame(document.getElementById('lc-root'));
 }
-
-function lcRedo() {
-  if (!lcState.future.length) return;
-  lcState.history.push(JSON.parse(JSON.stringify(lcState.players)));
-  lcState.players = lcState.future.pop();
-  lcRenderGame();
+function lcRedo(){
+  if(!lc.future.length) return;
+  lc.history.push(JSON.parse(JSON.stringify(lc.players)));
+  lc.players=lc.future.pop();
+  lcBuildGame(document.getElementById('lc-root'));
 }
-
-function lcReset() {
-  if (!confirm('¿Reiniciar la partida?')) return;
-  lcState.players = lcState.players.map((p, i) => ({
-    ...p, life: lcState.startLife, eliminated: false
-  }));
-  lcState.history = [];
-  lcState.future = [];
-  lcDeltaValues = {};
-  lcRenderGame();
-}
-
-function lcBackToSetup() {
-  lcState.screen = 'setup';
-  lcRenderSetup();
+function lcReset(){
+  if(!confirm('¿Reiniciar la partida?')) return;
+  lc.players.forEach(p=>{ p.life=lc.startLife; p.eliminated=false; });
+  lc.history=[]; lc.future=[]; lcDeltaVal={};
+  lcBuildGame(document.getElementById('lc-root'));
 }
 
 // ── EDITAR NOMBRE ─────────────────────────────────────────────────
-
-function lcOpenEdit(idx) {
-  lcState.editingIdx = idx;
-  lcRenderGame();
-  setTimeout(() => {
-    const inp = document.getElementById('lc-name-input');
-    if (inp) { inp.focus(); inp.select(); }
-  }, 60);
+function lcOpenEdit(idx){
+  lc.editingIdx=idx;
+  lcBuildGame(document.getElementById('lc-root'));
+  setTimeout(()=>{ const i=document.getElementById('lcni'); if(i){i.focus();i.select();} },60);
 }
-
-function lcCloseEdit() { lcState.editingIdx = -1; lcRenderGame(); }
-
-function lcConfirmEdit() {
-  const inp = document.getElementById('lc-name-input');
-  if (inp) {
-    const val = inp.value.trim();
-    if (val) lcState.players[lcState.editingIdx].name = val;
-  }
+function lcCloseEdit(){ lc.editingIdx=-1; lcBuildGame(document.getElementById('lc-root')); }
+function lcConfirmEdit(){
+  const v=document.getElementById('lcni')?.value?.trim();
+  if(v) lc.players[lc.editingIdx].name=v;
   lcCloseEdit();
 }
-
-function lcEditModal() {
-  const p = lcState.players[lcState.editingIdx];
-  return `
-    <div class="lc-overlay" onclick="lcCloseEdit()">
-      <div class="lc-modal" onclick="event.stopPropagation()">
-        <div class="lc-modal-title">Editar nombre</div>
-        <input class="lc-modal-input" id="lc-name-input" type="text" maxlength="20"
-          value="${escHtml(p?.name || '')}" placeholder="Nombre del jugador"
-          onkeydown="if(event.key==='Enter')lcConfirmEdit()">
-        <div class="lc-modal-btns">
-          <button class="lc-modal-btn lc-cancel" onclick="lcCloseEdit()">Cancelar</button>
-          <button class="lc-modal-btn lc-confirm" onclick="lcConfirmEdit()">Guardar</button>
-        </div>
+function lcModalHTML(){
+  const p=lc.players[lc.editingIdx];
+  return `<div class="lc-ov" onclick="lcCloseEdit()">
+    <div class="lc-mod" onclick="event.stopPropagation()">
+      <div class="lc-mod-t">Editar nombre</div>
+      <input class="lc-mod-i" id="lcni" type="text" maxlength="20"
+        value="${escHtml(p?.name||'')}" placeholder="Nombre"
+        onkeydown="if(event.key==='Enter')lcConfirmEdit()">
+      <div class="lc-mod-row">
+        <button class="lc-mod-btn lc-cancel" onclick="lcCloseEdit()">Cancelar</button>
+        <button class="lc-mod-btn lc-ok" onclick="lcConfirmEdit()">Guardar</button>
       </div>
-    </div>`;
+    </div>
+  </div>`;
 }
+
+// Re-render en resize
+window.addEventListener('resize',()=>{
+  if(lc.screen==='game'&&document.getElementById('screen-life-counter')?.classList.contains('active'))
+    lcBuildGame(document.getElementById('lc-root'));
+});
