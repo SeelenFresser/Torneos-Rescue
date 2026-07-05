@@ -124,38 +124,11 @@ async function generateC1v1SwissRound(t, newRound, players) {
     if (!m.player2_id) hadBye.add(m.player1_id);
   });
 
-  const sorted = [...players].sort((a,b) =>
-    (b.points - a.points) || ((b.game_wins-b.game_losses)-(a.game_wins-a.game_losses))
-  );
-
-  const pairings = [];
-  const used = new Set();
-
-  if (sorted.length % 2 !== 0) {
-    let byePlayer = null;
-    for (let i = sorted.length - 1; i >= 0; i--) {
-      if (!hadBye.has(sorted[i].id)) { byePlayer = sorted[i]; break; }
-    }
-    if (!byePlayer) byePlayer = sorted[sorted.length - 1];
-    pairings.push({ p1: byePlayer, p2: null });
-    used.add(byePlayer.id);
-  }
-
-  for (let i = 0; i < sorted.length; i++) {
-    if (used.has(sorted[i].id)) continue;
-    const p1 = sorted[i];
-    let p2 = null;
-    for (let j = i + 1; j < sorted.length; j++) {
-      if (!used.has(sorted[j].id)) {
-        const key = [p1.id, sorted[j].id].sort().join('|');
-        if (!prevPairs.has(key)) { p2 = sorted[j]; break; }
-      }
-    }
-    if (!p2) for (let j = i + 1; j < sorted.length; j++) {
-      if (!used.has(sorted[j].id)) { p2 = sorted[j]; break; }
-    }
-    if (p2) { pairings.push({ p1, p2 }); used.add(p1.id); used.add(p2.id); }
-  }
+  // Motor Suizo v4 — backtracking con mínimos rematches (compartido con swiss.js)
+  const { pairings: activePairings, bye: byePlayer } =
+    buildSwissPairingsV2(players, prevPairs, hadBye);
+  const pairings = [...activePairings];
+  if (byePlayer) pairings.push({ p1: byePlayer, p2: null });
 
   const inserts = pairings.map((p, i) => ({
     tournament_id: t.id, round: newRound, match_number: i + 1,
