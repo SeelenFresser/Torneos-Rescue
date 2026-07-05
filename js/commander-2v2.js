@@ -1,3 +1,155 @@
+// ═══════════════════════════════════════════════════════════════════════════
+// MOTOR DE EMPAREJAMIENTOS SUIZO — v4.0
+// Backtracking COMPLETO con heurística de mínimos rematches globales
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Calcula emparejamientos óptimos para una ronda de formato Suizo.
+ *
+ * ALGORITMO:
+ * 1. Asignar BYE si nº impar
+ * 2. Buscar mediante backtracking el emparejamiento sin ningún rematch
+ * 3. Si es imposible (matemáticamente), buscar el que tenga el MENOR número
+ *    de rematches posible
+ * 4. Validar el resultado
+ */
+function buildSwissPairingsV2(players, prevPairs, hadBye) {
+
+  // ── 1. ORDENAR ────────────────────────────────────────────────────────────
+  const sorted = [...players].sort((a, b) =>
+    (b.points - a.points) ||
+    ((b.game_wins - b.game_losses) - (a.game_wins - a.game_losses)) ||
+    (b.wins - a.wins)
+  );
+
+  // ── 2. BYE ────────────────────────────────────────────────────────────────
+  let byePlayer = null;
+  let active = sorted;
+
+  if (sorted.length % 2 !== 0) {
+    for (let i = sorted.length - 1; i >= 0; i--) {
+      if (!hadBye.has(sorted[i].id)) { byePlayer = sorted[i]; break; }
+    }
+    if (!byePlayer) byePlayer = sorted[sorted.length - 1];
+    active = sorted.filter(p => p.id !== byePlayer.id);
+  }
+
+  // ── 3. BACKTRACKING — buscar solución con 0 rematches ────────────────────
+  // Si no existe, buscar la de mínimos rematches
+  const best = findBestPairing(active, prevPairs);
+
+  // ── 4. VALIDAR ────────────────────────────────────────────────────────────
+  try { validate(best, active); }
+  catch(e) { console.error('Swiss v4 validación:', e.message); }
+
+  return { pairings: best, bye: byePlayer };
+}
+
+/**
+ * Encuentra el emparejamiento con el menor número de rematches posible.
+ * Primero intenta 0 rematches. Si no hay solución, intenta 1, 2, etc.
+ * Esto garantiza que NUNCA se usa un rematch si existe una solución sin él.
+ *
+ * @param {Array} players   - Jugadores activos (ya ordenados)
+ * @param {Set}   prevPairs - Historial
+ * @returns {Array}         - Array de { p1, p2 }
+ */
+function findBestPairing(players, prevPairs) {
+  const maxAllowed = players.length / 2; // máximo teórico de rematches
+
+  for (let maxRematches = 0; maxRematches <= maxAllowed; maxRematches++) {
+    const result = backtrack(players, prevPairs, [], 0, maxRematches);
+    if (result !== null) return result;
+  }
+
+  // Fallback absoluto (no debería llegar aquí)
+  return greedyFallback(players, prevPairs);
+}
+
+/**
+ * Backtracking recursivo con límite de rematches permitidos.
+ *
+ * @param {Array}  remaining     - Jugadores pendientes
+ * @param {Set}    prevPairs     - Historial
+ * @param {Array}  built         - Emparejamientos construidos
+ * @param {number} rematchCount  - Rematches usados hasta ahora
+ * @param {number} maxRematches  - Límite de rematches permitidos en esta búsqueda
+ * @returns {Array|null}
+ */
+function backtrack(remaining, prevPairs, built, rematchCount, maxRematches) {
+  // Caso base: todos emparejados → solución válida
+  if (remaining.length === 0) return built;
+
+  // Poda: si ya usamos demasiados rematches, abandonar esta rama
+  if (rematchCount > maxRematches) return null;
+
+  const p1   = remaining[0];
+  const rest = remaining.slice(1);
+
+  // Ordenar candidatos: primero los no-rematch, luego los rematch
+  // Dentro de cada grupo, mantienen el orden de puntos similares (ya ordenado)
+  const noRematch = rest.filter(p => !prevPairs.has([p1.id, p.id].sort().join('|')));
+  const rematch   = rest.filter(p =>  prevPairs.has([p1.id, p.id].sort().join('|')));
+  const candidates = [...noRematch, ...rematch];
+
+  for (const p2 of candidates) {
+    const key = [p1.id, p2.id].sort().join('|');
+    const isRematch = prevPairs.has(key);
+
+    // No exceder el límite de rematches
+    if (isRematch && rematchCount >= maxRematches) continue;
+
+    const remaining2   = rest.filter(p => p.id !== p2.id);
+    const newRematches = rematchCount + (isRematch ? 1 : 0);
+    const result       = backtrack(remaining2, prevPairs, [...built, { p1, p2 }], newRematches, maxRematches);
+
+    if (result !== null) return result;
+    // Si null → backtrack → probar siguiente candidato
+  }
+
+  return null; // ningún candidato llevó a solución con ≤ maxRematches
+}
+
+/**
+ * Greedy de último recurso.
+ */
+function greedyFallback(players, prevPairs) {
+  const pairings = [];
+  const used = new Set();
+  for (let i = 0; i < players.length; i++) {
+    if (used.has(players[i].id)) continue;
+    const p1 = players[i];
+    let p2 = null;
+    for (let j = i + 1; j < players.length; j++) {
+      if (!used.has(players[j].id) && !prevPairs.has([p1.id, players[j].id].sort().join('|'))) {
+        p2 = players[j]; break;
+      }
+    }
+    if (!p2) for (let j = i + 1; j < players.length; j++) {
+      if (!used.has(players[j].id)) { p2 = players[j]; break; }
+    }
+    if (p2) { pairings.push({ p1, p2 }); used.add(p1.id); used.add(p2.id); }
+  }
+  return pairings;
+}
+
+/**
+ * Valida que cada jugador aparezca exactamente una vez.
+ */
+function validate(pairings, activePlayers) {
+  const seen = new Set();
+  for (const { p1, p2 } of pairings) {
+    if (seen.has(p1.id)) throw new Error(`Duplicado: ${p1.id}`);
+    if (seen.has(p2.id)) throw new Error(`Duplicado: ${p2.id}`);
+    seen.add(p1.id); seen.add(p2.id);
+  }
+  if (seen.size !== activePlayers.length) {
+    throw new Error(`${seen.size}/${activePlayers.length} emparejados`);
+  }
+}
+
+
+
 // =============================================
 // COMMANDER 2vs2 — Torneo Swiss / Round Robin
 // Reglas THG adaptadas para Commander
@@ -593,44 +745,23 @@ async function generate2v2Round() {
 }
 
 function generateSwissPairings2v2(teams, matches) {
-  const sorted = [...teams].sort((a,b) => (b.points-a.points)||(b.wins-a.wins));
+  // Construir historial de enfrentamientos y BYEs previos
   const prevPairs = new Set();
   const hadBye = new Set();
-
   matches.forEach(m => {
     if (m.team1_id && m.team2_id) prevPairs.add([m.team1_id,m.team2_id].sort().join('|'));
     if (m.is_bye) hadBye.add(m.team1_id);
   });
 
-  const pairings = [];
-  const used = new Set();
+  // Motor Suizo v4 — backtracking con mínimos rematches
+  // Los equipos tienen .id y .points, igual que jugadores individuales
+  const { pairings: activePairings, bye: byeTeam } =
+    buildSwissPairingsV2(teams, prevPairs, hadBye);
 
-  // BYE al de menor puntos sin BYE previo
-  if (sorted.length % 2 !== 0) {
-    let byeTeam = null;
-    for (let i = sorted.length-1; i >= 0; i--) {
-      if (!hadBye.has(sorted[i].id)) { byeTeam = sorted[i]; break; }
-    }
-    if (!byeTeam) byeTeam = sorted[sorted.length-1];
-    pairings.push({ t1: byeTeam, t2: null });
-    used.add(byeTeam.id);
-  }
+  // Convertir { p1, p2 } → { t1, t2 } para mantener la nomenclatura 2v2
+  const pairings = activePairings.map(({ p1, p2 }) => ({ t1: p1, t2: p2 }));
+  if (byeTeam) pairings.push({ t1: byeTeam, t2: null });
 
-  for (let i = 0; i < sorted.length; i++) {
-    if (used.has(sorted[i].id)) continue;
-    const t1 = sorted[i];
-    let t2 = null;
-    for (let j = i+1; j < sorted.length; j++) {
-      if (!used.has(sorted[j].id)) {
-        const key = [t1.id, sorted[j].id].sort().join('|');
-        if (!prevPairs.has(key)) { t2 = sorted[j]; break; }
-      }
-    }
-    if (!t2) for (let j = i+1; j < sorted.length; j++) {
-      if (!used.has(sorted[j].id)) { t2 = sorted[j]; break; }
-    }
-    if (t2) { pairings.push({t1,t2}); used.add(t1.id); used.add(t2.id); }
-  }
   return pairings;
 }
 
