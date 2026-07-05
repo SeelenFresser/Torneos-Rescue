@@ -153,6 +153,10 @@ async function loadDashboard() {
       style="border-color:var(--gold);color:var(--gold);font-weight:700">
       🌀 Liga Beyblade
     </button>
+    <button class="btn" onclick="openLifeCounter()"
+      style="border-color:var(--magic);color:var(--magic);font-weight:700">
+      <img src="img/magic-bunny-icon.png" style="width:18px;height:18px;vertical-align:-3px;margin-right:4px">Contador de Vida
+    </button>
   `;
 
   const el = document.getElementById('tournament-list');
