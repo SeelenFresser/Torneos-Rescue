@@ -42,8 +42,18 @@ let lcHold={}, lcDeltaVal={}, lcDeltaTimer={}, lcWakeLock=null;
 function openLifeCounter() {
   AudioFX && AudioFX.tap && AudioFX.tap();
   lc.screen='setup'; lc.rollResult=null;
-  // Usar lc-root directamente como overlay fixed (evita conflicto con .screen { display:block })
-  document.getElementById('lc-root').classList.add('lc-open');
+  // Aplicar estilos directamente en JS para evitar problemas de caché/especificidad CSS
+  const root = document.getElementById('lc-root');
+  const s = root.style;
+  s.position = 'fixed';
+  s.inset = '0';
+  s.zIndex = '9999';
+  s.width = '100vw';
+  s.height = '100vh';
+  s.background = '#120010';
+  s.display = 'flex';
+  s.flexDirection = 'column';
+  s.overflow = 'hidden';
   if (navigator.wakeLock) navigator.wakeLock.request('screen').then(l=>lcWakeLock=l).catch(()=>{});
   lcRender();
 }
@@ -51,7 +61,9 @@ function closeLifeCounter() {
   if (lcWakeLock) { lcWakeLock.release(); lcWakeLock=null; }
   Object.values(lcHold).forEach(clearTimeout);
   if (screen.orientation?.unlock) screen.orientation.unlock();
-  document.getElementById('lc-root').classList.remove('lc-open');
+  const root = document.getElementById('lc-root');
+  root.style.cssText = '';
+  root.innerHTML = '';
   goToDashboard();
 }
 
