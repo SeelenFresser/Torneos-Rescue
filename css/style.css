@@ -459,7 +459,7 @@ hr { border: none; border-top: 1px solid var(--border); margin: 14px 0; }
 #screen-life-counter{display:none!important;min-height:0!important;height:0!important;overflow:hidden!important}
 #lc-root{position:fixed!important;inset:0!important;z-index:500;background:#120010;
   display:none;flex-direction:column;overflow:hidden}
-#lc-root.lc-open{display:flex!important}
+#lc-root.lc-open{display:flex!important;width:100vw!important;height:100vh!important}
 .lcs-wrap{display:flex!important;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:24px 20px;height:100vh;max-width:500px;margin:0 auto;overflow-y:auto}
 .lcs-logo{font-size:11px;font-weight:700;color:var(--pink);letter-spacing:3px;text-transform:uppercase;opacity:.7}
 .lcs-title{font-size:32px;font-weight:900;color:var(--text);letter-spacing:-.5px}
