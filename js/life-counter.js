@@ -42,7 +42,8 @@ let lcHold={}, lcDeltaVal={}, lcDeltaTimer={}, lcWakeLock=null;
 function openLifeCounter() {
   AudioFX && AudioFX.tap && AudioFX.tap();
   lc.screen='setup'; lc.rollResult=null;
-  showScreen('screen-life-counter');
+  // Usar lc-root directamente como overlay fixed (evita conflicto con .screen { display:block })
+  document.getElementById('lc-root').classList.add('lc-open');
   if (navigator.wakeLock) navigator.wakeLock.request('screen').then(l=>lcWakeLock=l).catch(()=>{});
   lcRender();
 }
@@ -50,6 +51,7 @@ function closeLifeCounter() {
   if (lcWakeLock) { lcWakeLock.release(); lcWakeLock=null; }
   Object.values(lcHold).forEach(clearTimeout);
   if (screen.orientation?.unlock) screen.orientation.unlock();
+  document.getElementById('lc-root').classList.remove('lc-open');
   goToDashboard();
 }
 
@@ -319,6 +321,6 @@ function lcModalHTML(){
 
 // Re-render en resize
 window.addEventListener('resize',()=>{
-  if(lc.screen==='game'&&document.getElementById('screen-life-counter')?.classList.contains('active'))
+  if(lc.screen==='game'&&document.getElementById('lc-root')?.classList.contains('lc-open'))
     lcBuildGame(document.getElementById('lc-root'));
 });
