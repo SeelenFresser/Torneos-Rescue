@@ -43,13 +43,16 @@ function openLifeCounter() {
   AudioFX && AudioFX.tap && AudioFX.tap();
   lc.screen='setup'; lc.rollResult=null;
   // Aplicar estilos directamente en JS para evitar problemas de caché/especificidad CSS
+  // Mover lc-root al body directamente para evitar que display:none del padre lo oculte
   const root = document.getElementById('lc-root');
+  document.body.appendChild(root);
   const s = root.style;
   s.position = 'fixed';
-  s.inset = '0';
-  s.zIndex = '9999';
+  s.top = '0';
+  s.left = '0';
   s.width = '100vw';
   s.height = '100vh';
+  s.zIndex = '999999';
   s.background = '#120010';
   s.display = 'flex';
   s.flexDirection = 'column';
@@ -62,6 +65,8 @@ function closeLifeCounter() {
   Object.values(lcHold).forEach(clearTimeout);
   if (screen.orientation?.unlock) screen.orientation.unlock();
   const root = document.getElementById('lc-root');
+  const originalParent = document.getElementById('screen-life-counter');
+  if (originalParent) originalParent.appendChild(root);
   root.style.cssText = '';
   root.innerHTML = '';
   goToDashboard();
