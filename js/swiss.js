@@ -50,8 +50,10 @@ function buildSwissPairingsV2(players, prevPairs, hadBye) {
   const best = findBestPairing(active, prevPairs);
 
   // ── 4. VALIDAR ────────────────────────────────────────────────────────────
-  try { validate(best, active); }
-  catch(e) { console.error('Swiss v4 validación:', e.message); }
+  // Antes esto solo hacía console.error y el emparejamiento se usaba igual.
+  // Ahora SÍ lanza — quien llama debe capturarlo y abortar en vez de
+  // insertar un emparejamiento inválido en la base de datos.
+  validate(best, active);
 
   return { pairings: best, bye: byePlayer };
 }
@@ -443,8 +445,14 @@ async function _generateSwissRoundInternal() {
     }
   }
 
-  const { pairings: activePairings, bye: byePlayer } =
-    buildSwissPairingsV2(playersForPairing, prevPairs, hadBye);
+  let activePairings, byePlayer;
+  try {
+    ({ pairings: activePairings, bye: byePlayer } = buildSwissPairingsV2(playersForPairing, prevPairs, hadBye));
+  } catch (e) {
+    console.error('Swiss v4 validación falló:', e.message);
+    showToast('Error generando emparejamientos — intenta de nuevo');
+    return;
+  }
 
   const pairings = activePairings;
   if (byePlayer) pairings.push({ p1: byePlayer, p2: null });
