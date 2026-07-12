@@ -4,6 +4,93 @@
 // cEDH con kills · Admin confirma
 // =============================================
 
+// ── MOTOR DE PODS v2 — con memoria de historial (evita repetir grupos) ──
+// A diferencia del Swiss 1v1/2v2 (pares), aquí los grupos son de 3-4
+// jugadores, así que en vez de backtracking puro usamos greedy + reinicios
+// aleatorios, minimizando pares-repetidos por pod. Siempre válido: cada
+// jugador queda colocado exactamente una vez (verificado por validatePods).
+function podPairKey(id1, id2) { return [id1, id2].sort().join('|'); }
+
+function podSizesFor(n) {
+  if (n < 3) return [n];
+  const remainder = n % 4;
+  let threePods = remainder === 0 ? 0 : remainder === 1 ? 3 : remainder === 2 ? 2 : 1;
+  if (n < 6 && remainder !== 0) return [n];
+  const fourPods = (n - threePods * 3) / 4;
+  const sizes = [];
+  for (let i = 0; i < fourPods; i++) sizes.push(4);
+  for (let i = 0; i < threePods; i++) sizes.push(3);
+  return sizes;
+}
+
+function podJitterByPoints(sorted) {
+  // Baraja (Fisher-Yates real) solo dentro de bloques de puntos idénticos,
+  // para no perder el criterio "mejores juntos" pero sí variar el orden
+  // entre intentos y evitar el sesgo del sort(()=>Math.random()-.5).
+  const groups = [];
+  let current = [];
+  for (const p of sorted) {
+    if (current.length && current[0].points !== p.points) { groups.push(current); current = []; }
+    current.push(p);
+  }
+  if (current.length) groups.push(current);
+  return groups.flatMap(g => shuffle(g));
+}
+
+function buildPodsV2(sortedPlayers, prevPairs, attempts = 60) {
+  const sizes = podSizesFor(sortedPlayers.length);
+  let best = null;
+  let bestConflicts = Infinity;
+
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    const pool = attempt === 0 ? [...sortedPlayers] : podJitterByPoints(sortedPlayers);
+    const pods = [];
+    for (const size of sizes) {
+      const pod = [];
+      for (let s = 0; s < size; s++) {
+        // El pool se reduce con splice en cada draw, así que el candidato
+        // "mejor puntuado disponible" siempre está cerca del inicio (0).
+        let bestCandI = -1, bestCandConflicts = Infinity;
+        const windowEnd = Math.min(pool.length, Math.max(size * 3, 6));
+        for (let i = 0; i < windowEnd; i++) {
+          const cand = pool[i];
+          let conflicts = 0;
+          for (const p of pod) if (prevPairs.has(podPairKey(p.id, cand.id))) conflicts++;
+          if (conflicts < bestCandConflicts) { bestCandConflicts = conflicts; bestCandI = i; }
+          if (conflicts === 0) break;
+        }
+        if (bestCandI === -1) { bestCandI = 0; bestCandConflicts = 0; }
+        pod.push(pool[bestCandI]);
+        pool.splice(bestCandI, 1);
+      }
+      pods.push(pod);
+    }
+    const c = pods.reduce((sum, pod) => {
+      let n = 0;
+      for (let i = 0; i < pod.length; i++)
+        for (let j = i + 1; j < pod.length; j++)
+          if (prevPairs.has(podPairKey(pod[i].id, pod[j].id))) n++;
+      return sum + n;
+    }, 0);
+    if (c < bestConflicts) { bestConflicts = c; best = pods; }
+    if (bestConflicts === 0) break;
+  }
+  return { pods: best, conflicts: bestConflicts };
+}
+
+function validatePods(pods, allPlayers) {
+  const seen = new Set();
+  for (const pod of pods) {
+    for (const p of pod) {
+      if (seen.has(p.id)) throw new Error(`Jugador duplicado en pods: ${p.name || p.id}`);
+      seen.add(p.id);
+    }
+  }
+  if (seen.size !== allPlayers.length) {
+    throw new Error(`Solo ${seen.size}/${allPlayers.length} jugadores quedaron en un pod`);
+  }
+}
+
 const CMD_PTS = {
   standard:  (place, size) => place===1?3:place===2&&size>=3?1:0,
   placement: (place, size) => size===2?[5,1][place-1]:size===3?[10,4,1][place-1]:[10,6,3,1][place-1]||0,
@@ -106,6 +193,16 @@ async function startCommander() {
 }
 
 async function generateAndShowPods() {
+  if (window._generatingPods) { showToast('Generando ronda... espera'); return; }
+  window._generatingPods = true;
+  try {
+    await _generateAndShowPodsInternal();
+  } finally {
+    window._generatingPods = false;
+  }
+}
+
+async function _generateAndShowPodsInternal() {
   const t = currentTournament;
   const totalRounds = t.total_rounds||3;
   if ((t.current_round||0) >= totalRounds) { showToast('Ya se jugaron todas las rondas'); return; }
@@ -117,10 +214,47 @@ async function generateAndShowPods() {
     if (pending&&pending.length>0) { showToast(`Faltan ${pending.length} pod(s) por confirmar`); return; }
   }
 
-  // Ordenar por puntos (mejores juntos), desempate aleatorio
-  const sorted = [...tournamentPlayers].sort((a,b)=>(b.points-a.points)||(b.wins-a.wins)||(Math.random()-.5));
   const newRound = (t.current_round||0)+1;
-  const pods = buildPods(sorted);
+
+  // Verificar que esta ronda no exista ya (otra pestaña/dispositivo pudo generarla)
+  const { data: existingPods } = await _supabase.from('pod_sessions').select('id')
+    .eq('tournament_id', t.id).eq('round', newRound);
+  if (existingPods && existingPods.length > 0) {
+    showToast('Esta ronda ya fue generada'); await loadPlayers(); renderCommanderView(); return;
+  }
+
+  // Avance atómico: solo una llamada gana la carrera de current_round
+  const { data: updated } = await _supabase.from('tournaments')
+    .update({ current_round: newRound }).eq('id', t.id).eq('current_round', newRound - 1).select('id');
+  if (!updated?.length) { await loadPlayers(); renderCommanderView(); return; }
+  currentTournament.current_round = newRound;
+
+  // Historial de pods anteriores → pares que ya jugaron juntos
+  const { data: prevSessions } = await _supabase.from('pod_sessions').select('player_ids')
+    .eq('tournament_id', t.id).lt('round', newRound);
+  const prevPairs = new Set();
+  (prevSessions||[]).forEach(s => {
+    const ids = JSON.parse(s.player_ids||'[]');
+    for (let i=0;i<ids.length;i++) for (let j=i+1;j<ids.length;j++) prevPairs.add(podPairKey(ids[i],ids[j]));
+  });
+
+  // Ordenar por puntos (mejores juntos), desempate real (Fisher-Yates dentro de empates)
+  const sorted = podJitterByPoints([...tournamentPlayers].sort((a,b)=>(b.points-a.points)||(b.wins-a.wins)));
+  const { pods } = buildPodsV2(sorted, prevPairs);
+
+  try {
+    validatePods(pods, tournamentPlayers);
+  } catch (e) {
+    // A diferencia del motor Swiss viejo, aquí SÍ abortamos — nunca insertar
+    // un armado de pods que no sea válido.
+    console.error('Pods v2 validación falló:', e.message);
+    showToast('Error generando pods — intenta de nuevo (' + e.message + ')');
+    // Revertir el avance de ronda para no dejar el torneo en estado inconsistente
+    await _supabase.from('tournaments').update({ current_round: newRound - 1 })
+      .eq('id', t.id).eq('current_round', newRound);
+    currentTournament.current_round = newRound - 1;
+    return;
+  }
 
   // Guardar pod_sessions en DB
   for (let pi=0; pi<pods.length; pi++) {
@@ -136,33 +270,10 @@ async function generateAndShowPods() {
     }, {onConflict:'tournament_id,round,pod_number'});
   }
 
-  await _supabase.from('tournaments').update({current_round:newRound}).eq('id',t.id);
-  currentTournament.current_round = newRound;
-
   AudioFX.roundStart();
   showToast(`Ronda ${newRound}/${totalRounds} generada ✓`);
   await loadPlayers();
   renderCommanderView();
-}
-
-function buildPods(sorted) {
-  const n = sorted.length;
-  const pods = [];
-
-  const remainder = n % 4;
-  let threePods = remainder === 0 ? 0 : remainder === 1 ? 3 : remainder === 2 ? 2 : 1;
-
-  // n<6 con sobrante: 1 pod único
-  if (n < 6 && remainder !== 0) {
-    pods.push([...sorted]);
-    return pods;
-  }
-
-  const fourPods = (n - threePods * 3) / 4;
-  let idx = 0;
-  for (let i = 0; i < fourPods; i++) { pods.push(sorted.slice(idx, idx+4)); idx+=4; }
-  for (let i = 0; i < threePods; i++) { pods.push(sorted.slice(idx, idx+3)); idx+=3; }
-  return pods;
 }
 
 // ── CARGAR Y MOSTRAR PODS (todas las rondas) ────────────
@@ -360,10 +471,33 @@ async function saveAdminCEDH(podIdx) {
 async function confirmPod(podIdx) {
   const sessions = window._cmdrSessions;
   if (!sessions||!sessions[podIdx]) return;
-  // Verificar que el pod no esté ya confirmado
+  const sessionId = sessions[podIdx].id;
+
+  // Guard anti doble-click, igual que confirmBeyRRResult — por sessionId,
+  // así que confirmar pods DISTINTOS al mismo tiempo sigue funcionando.
+  if (!window._confirmingPod) window._confirmingPod = new Set();
+  if (window._confirmingPod.has(sessionId)) { showToast('Confirmando...'); return; }
+  window._confirmingPod.add(sessionId);
+
+  try {
+    await _confirmPodInternal(podIdx, sessions, sessionId);
+  } finally {
+    window._confirmingPod.delete(sessionId);
+  }
+}
+
+async function _confirmPodInternal(podIdx, sessions, sessionId) {
+  // Verificar que el pod no esté ya confirmado (chequeo en memoria)
   if (sessions[podIdx].is_confirmed) {
     showToast('Este pod ya fue confirmado'); return;
   }
+  // Y también fresco en DB, por si otra pestaña/dispositivo ya lo confirmó
+  const { data: freshSession } = await _supabase.from('pod_sessions')
+    .select('is_confirmed').eq('id', sessionId).single();
+  if (freshSession?.is_confirmed) {
+    showToast('Este pod ya fue confirmado'); await loadAndShowCurrentPods(); return;
+  }
+
   const s = sessions[podIdx];
   const ptsSystem = currentTournament.points_system||'standard';
   const isCEDH = ptsSystem==='cedh';
