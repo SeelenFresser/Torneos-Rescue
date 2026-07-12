@@ -231,6 +231,16 @@ function openJoinModal(tournamentId, tournamentName, type) {
 }
 
 async function joinTournament() {
+  if (window._joiningTournament) return; // guard anti doble-tap
+  window._joiningTournament = true;
+  try {
+    await _joinTournamentInternal();
+  } finally {
+    window._joiningTournament = false;
+  }
+}
+
+async function _joinTournamentInternal() {
   const name = document.getElementById('join-name').value.trim();
   if (!name) { showToast('Pon tu nombre'); return; }
 
@@ -304,31 +314,9 @@ async function loadHallOfFame() {
   </table>`;
 }
 
-async function registerHallOfFame(tournamentId) {
-  const { data: t } = await _supabase
-    .from('tournaments').select('*').eq('id', tournamentId).single();
-  if (!t) return;
-
-  const { data: players } = await _supabase
-    .from('players').select('*').eq('tournament_id', tournamentId);
-  if (!players || !players.length) return;
-
-  const sorted = [...players].sort((a,b)=>(b.points-a.points)||(b.wins-a.wins));
-  const winner = sorted[0];
-
-  await _supabase.from('hall_of_fame').insert({
-    tournament_id:     tournamentId,
-    tournament_name:   t.name,
-    tournament_type:   t.type,
-    tournament_format: t.format,
-    winner_name:       winner.name,
-    winner_id:         winner.user_id || null,
-    winner_points:     winner.points || 0,
-    winner_wins:       winner.wins   || 0,
-    tournament_date:   t.tournament_date || new Date().toISOString(),
-    player_count:      players.length
-  });
-}
+// registerHallOfFame() vive en js/tournament.js (compartida) — usa upsert
+// para evitar duplicados si se llama dos veces. Antes había una segunda
+// copia aquí sin upsert; se quitó para no depender del orden de carga.
 
 async function finalizarTorneoDesdeInicio(tournamentId, event) {
   event.stopPropagation();
