@@ -125,8 +125,18 @@ async function generateC1v1SwissRound(t, newRound, players) {
   });
 
   // Motor Suizo v4 — backtracking con mínimos rematches (compartido con swiss.js)
-  const { pairings: activePairings, bye: byePlayer } =
-    buildSwissPairingsV2(players, prevPairs, hadBye);
+  let activePairings, byePlayer;
+  try {
+    ({ pairings: activePairings, bye: byePlayer } = buildSwissPairingsV2(players, prevPairs, hadBye));
+  } catch (e) {
+    console.error('Swiss v4 validación falló (C1v1):', e.message);
+    showToast('Error generando emparejamientos — intenta de nuevo');
+    // Revertir el avance de ronda para no dejar el torneo en estado inconsistente
+    await _supabase.from('tournaments').update({ current_round: newRound - 1 })
+      .eq('id', t.id).eq('current_round', newRound);
+    currentTournament.current_round = newRound - 1;
+    return;
+  }
   const pairings = [...activePairings];
   if (byePlayer) pairings.push({ p1: byePlayer, p2: null });
 
