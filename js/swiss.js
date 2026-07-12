@@ -16,12 +16,16 @@
 function buildSwissPairingsV2(players, prevPairs, hadBye) {
 
   // ── 1. ORDENAR ────────────────────────────────────────────────────────────
-  // Si todos tienen 0 puntos (Ronda 1), barajar aleatoriamente antes de ordenar.
+  // Si todos tienen 0 puntos (Ronda 1), barajar con Fisher-Yates (shuffle real).
   // Sin esto, el orden de inscripción determina los emparejamientos (1v2, 3v4...).
   const allZero = players.every(p => (p.points || 0) === 0);
-  const base = allZero
-    ? [...players].sort(() => Math.random() - 0.5)  // shuffle
-    : [...players];
+  const base = [...players];
+  if (allZero) {
+    for (let i = base.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [base[i], base[j]] = [base[j], base[i]];
+    }
+  }
 
   const sorted = base.sort((a, b) =>
     (b.points - a.points) ||
@@ -429,10 +433,18 @@ async function _generateSwissRoundInternal() {
     .map(m => m.player1_id));
 
   // ── Motor Suizo v4: backtracking con mínimos rematches ──────────────────
-  // Usa buildSwissPairingsV2 definido al inicio del archivo.
-  // Garantiza: 0 rematches si existe solución, BYE al de menor puntos.
+  // Ronda 1: barajar explícitamente para que los emparejamientos sean al azar
+  // (sin esto, el orden de inscripción manda: 1v2, 3v4, 5v6...)
+  let playersForPairing = [...players];
+  if (newRound === 1) {
+    for (let i = playersForPairing.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [playersForPairing[i], playersForPairing[j]] = [playersForPairing[j], playersForPairing[i]];
+    }
+  }
+
   const { pairings: activePairings, bye: byePlayer } =
-    buildSwissPairingsV2(players, prevPairs, hadBye);
+    buildSwissPairingsV2(playersForPairing, prevPairs, hadBye);
 
   const pairings = activePairings;
   if (byePlayer) pairings.push({ p1: byePlayer, p2: null });
