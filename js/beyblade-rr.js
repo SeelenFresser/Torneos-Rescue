@@ -69,9 +69,28 @@ async function renderBeybladeRRView() {
 }
 
 async function addPlayerRRBey() {
+  if (window._addingPlayerRRBey) return; // guard anti doble-click
+  window._addingPlayerRRBey = true;
+  try {
+    await _addPlayerRRBeyInternal();
+  } finally {
+    window._addingPlayerRRBey = false;
+  }
+}
+
+async function _addPlayerRRBeyInternal() {
   const nameEl = document.getElementById('rr-bey-player-name');
   const name = nameEl?.value?.trim();
   if (!name) { showToast('Escribe un nombre'); return; }
+
+  // Antes esta función no chequeaba duplicados de ningún tipo — se agrega
+  // el mismo criterio que usan los demás formatos (memoria + DB fresca).
+  if (tournamentPlayers.some(p => p.name.toLowerCase() === name.toLowerCase())) {
+    showToast('Jugador ya registrado'); return;
+  }
+  const { data: dupCheck } = await _supabase.from('players').select('id')
+    .eq('tournament_id', currentTournament.id).ilike('name', name).limit(1);
+  if (dupCheck && dupCheck.length > 0) { showToast('Jugador ya registrado'); await loadPlayers(); renderBeybladeRRView(); return; }
 
   const { error } = await _supabase.from('players').insert({
     tournament_id: currentTournament.id, name,
