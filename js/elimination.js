@@ -149,6 +149,16 @@ function renderElimMatch(m) {
 }
 
 async function generateElimRound() {
+  if (window._generatingElim) { showToast('Generando ronda... espera'); return; }
+  window._generatingElim = true;
+  try {
+    await _generateElimRoundInternal();
+  } finally {
+    window._generatingElim = false;
+  }
+}
+
+async function _generateElimRoundInternal() {
   const players = tournamentPlayers;
   if (players.length < 2) { showToast('Necesitas al menos 2 participantes'); return; }
 
@@ -181,11 +191,27 @@ async function generateElimRound() {
     }
   }
 
-  const newRound = (currentTournament.current_round || 0) + 1;
+  const oldRound = currentTournament.current_round || 0;
+  const newRound = oldRound + 1;
 
-  // Determine who plays
+  // Verificar que esta ronda no exista ya (otra pestaña/dispositivo)
+  const { data: existingMatches } = await _supabase
+    .from('matches').select('id')
+    .eq('tournament_id', currentTournament.id).eq('round', newRound).eq('match_type', 'elimination');
+  if (existingMatches && existingMatches.length > 0) {
+    showToast('Esta ronda ya fue generada'); await loadPlayers(); renderEliminationView(); return;
+  }
+
+  // Avance atómico: solo una llamada gana la carrera de current_round
+  const { data: updatedT } = await _supabase.from('tournaments')
+    .update({ current_round: newRound })
+    .eq('id', currentTournament.id).eq('current_round', oldRound).select('id');
+  if (!updatedT?.length) { await loadPlayers(); renderEliminationView(); return; }
+  currentTournament.current_round = newRound;
+
+  // Determine who plays (usa oldRound, capturado ANTES del avance atómico)
   let participants = [];
-  if (currentTournament.current_round === 0) {
+  if (oldRound === 0) {
     participants = shuffle([...players]);
   } else {
     // Winners from last round
@@ -194,7 +220,7 @@ async function generateElimRound() {
       .select('winner_id')
       .eq('tournament_id', currentTournament.id)
       .eq('match_type', 'elimination')
-      .eq('round', currentTournament.current_round);
+      .eq('round', oldRound);
 
     const winnerIds = lastRound.map(m => m.winner_id).filter(Boolean);
     participants = shuffle(players.filter(p => winnerIds.includes(p.id)));
@@ -225,8 +251,6 @@ async function generateElimRound() {
   }));
 
   await _supabase.from('matches').insert(inserts);
-  await _supabase.from('tournaments').update({ current_round: newRound }).eq('id', currentTournament.id);
-  currentTournament.current_round = newRound;
 
   await loadPlayers();
   renderEliminationView();
