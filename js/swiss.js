@@ -16,7 +16,14 @@
 function buildSwissPairingsV2(players, prevPairs, hadBye) {
 
   // ── 1. ORDENAR ────────────────────────────────────────────────────────────
-  const sorted = [...players].sort((a, b) =>
+  // Si todos tienen 0 puntos (Ronda 1), barajar aleatoriamente antes de ordenar.
+  // Sin esto, el orden de inscripción determina los emparejamientos (1v2, 3v4...).
+  const allZero = players.every(p => (p.points || 0) === 0);
+  const base = allZero
+    ? [...players].sort(() => Math.random() - 0.5)  // shuffle
+    : [...players];
+
+  const sorted = base.sort((a, b) =>
     (b.points - a.points) ||
     ((b.game_wins - b.game_losses) - (a.game_wins - a.game_losses)) ||
     (b.wins - a.wins)
