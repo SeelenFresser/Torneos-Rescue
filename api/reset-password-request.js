@@ -36,11 +36,22 @@ module.exports = async (req, res) => {
     const token = crypto.randomBytes(32).toString('hex');
     const expires = new Date(Date.now() + 60 * 60 * 1000).toISOString(); // 1 hora
 
-    // Guardar token en profiles
-    await supabase.from('profiles').update({
-      reset_token: token,
-      reset_expires: expires
-    }).eq('id', user.id);
+    // Guardar token en profiles — CON verificación de error
+    const { data: updated, error: updateErr } = await supabase
+      .from('profiles')
+      .update({ reset_token: token, reset_expires: expires })
+      .eq('id', user.id)
+      .select('id');
+
+    if (updateErr) {
+      console.error('ERROR guardando reset_token:', updateErr);
+      return res.status(500).json({ error: 'Error guardando token: ' + updateErr.message });
+    }
+    if (!updated || updated.length === 0) {
+      console.error('ERROR: no se actualizó ninguna fila en profiles para id:', user.id);
+      return res.status(500).json({ error: 'No se encontró el perfil del usuario' });
+    }
+    console.log('Token guardado correctamente para:', user.id);
 
     // Construir link de reset
     const resetLink = `https://torneos-rescue.vercel.app?reset_token=${token}`;
