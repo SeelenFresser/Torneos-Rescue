@@ -152,6 +152,16 @@ async function startLeague() {
 }
 
 async function generateNextWeek() {
+  if (window._generatingLeagueWeek) { showToast('Generando semana... espera'); return; }
+  window._generatingLeagueWeek = true;
+  try {
+    await _generateNextWeekInternal();
+  } finally {
+    window._generatingLeagueWeek = false;
+  }
+}
+
+async function _generateNextWeekInternal() {
   const players = tournamentPlayers;
   const currentWeek = currentTournament.current_round || 0;
   const totalWeeks = currentTournament.total_rounds || players.length - 1;
@@ -175,8 +185,9 @@ async function generateNextWeek() {
     }
   }
 
-  // Verificar que no existe ya la siguiente semana
   const newWeek = currentWeek + 1;
+
+  // Verificar que no existe ya la siguiente semana
   const { data: existing } = await _supabase
     .from('matches').select('id')
     .eq('tournament_id', currentTournament.id)
@@ -186,6 +197,13 @@ async function generateNextWeek() {
     showToast('Esta semana ya fue generada');
     return;
   }
+
+  // Avance atómico: solo una llamada gana la carrera de current_round
+  const { data: updatedT } = await _supabase.from('tournaments')
+    .update({ current_round: newWeek })
+    .eq('id', currentTournament.id).eq('current_round', currentWeek).select('id');
+  if (!updatedT?.length) { await loadPlayers(); return; }
+  currentTournament.current_round = newWeek;
 
   // Generar todos los rounds y tomar el que corresponde
   const allRounds = generateRoundRobin(players);
@@ -226,9 +244,6 @@ async function generateNextWeek() {
       }
     }
   }
-
-  await _supabase.from('tournaments').update({ current_round: newWeek }).eq('id', currentTournament.id);
-  currentTournament.current_round = newWeek;
 
   AudioFX.roundStart();
   showToast(`📅 Semana ${newWeek}/${totalWeeks} generada`);
@@ -581,6 +596,18 @@ function getName(playerId) {
 }
 
 async function generateLeagueFinals() {
+  if (window._generatingLeagueFinals) { showToast('Generando...'); return; }
+  window._generatingLeagueFinals = true;
+  try {
+    await _generateLeagueFinalsInternal();
+  } finally {
+    window._generatingLeagueFinals = false;
+  }
+}
+
+async function _generateLeagueFinalsInternal() {
+  const oldRound = currentTournament.current_round || 0;
+
   // Obtener semis completadas de la ronda más baja del playoff
   const { data: allPlayoff } = await _supabase
     .from('matches').select('*')
@@ -613,6 +640,13 @@ async function generateLeagueFinals() {
 
   const newRound = semiRound + 1;
 
+  // Avance atómico: solo una llamada gana la carrera (evita insertar finales duplicadas)
+  const { data: updatedT } = await _supabase.from('tournaments')
+    .update({ current_round: newRound })
+    .eq('id', currentTournament.id).eq('current_round', oldRound).select('id');
+  if (!updatedT?.length) { showToast('Las finales ya fueron generadas'); await loadAndRenderPlayoff(); return; }
+  currentTournament.current_round = newRound;
+
   const { error } = await _supabase.from('matches').insert([
     {
       tournament_id: currentTournament.id,
@@ -633,9 +667,6 @@ async function generateLeagueFinals() {
   ]);
 
   if (error) { showToast('Error: '+error.message); return; }
-
-  await _supabase.from('tournaments').update({ current_round: newRound }).eq('id', currentTournament.id);
-  currentTournament.current_round = newRound;
 
   AudioFX.roundStart();
   showToast('🏆 Final y partido por 3er lugar generados');
