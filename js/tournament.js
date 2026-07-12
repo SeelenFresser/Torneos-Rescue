@@ -54,12 +54,28 @@ async function loadPlayers() {
 
 // Admin agrega jugador manualmente (sin cuenta)
 async function addPlayer(nameInputId, beyInputId) {
+  if (window._addingPlayer) return; // guard anti doble-click / doble-Enter
+  window._addingPlayer = true;
+  try {
+    await _addPlayerInternal(nameInputId, beyInputId);
+  } finally {
+    window._addingPlayer = false;
+  }
+}
+
+async function _addPlayerInternal(nameInputId, beyInputId) {
   const nameEl = document.getElementById(nameInputId);
   const name = nameEl.value.trim();
   if (!name) return;
   const beyEl = beyInputId ? document.getElementById(beyInputId) : null;
   const bey_name = beyEl ? beyEl.value.trim() : null;
   if (tournamentPlayers.some(p => p.name.toLowerCase() === name.toLowerCase())) { showToast('Jugador ya registrado'); return; }
+
+  // Chequeo fresco en DB — el array en memoria puede estar desfasado si otro
+  // dispositivo/pestaña agregó a alguien justo antes.
+  const { data: dupCheck } = await _supabase.from('players').select('id')
+    .eq('tournament_id', currentTournament.id).ilike('name', name).limit(1);
+  if (dupCheck && dupCheck.length > 0) { showToast('Jugador ya registrado'); await loadPlayers(); refreshCurrentView(); return; }
 
   const { error } = await _supabase.from('players').insert({
     tournament_id: currentTournament.id,
