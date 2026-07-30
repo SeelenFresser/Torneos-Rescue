@@ -156,15 +156,25 @@ async function requestPasswordReset() {
   statusEl.textContent = 'Enviando...';
   statusEl.style.color = 'var(--muted)';
   try {
-    await fetch('/api/reset-password-request', {
+    const res = await fetch('/api/reset-password-request', {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
       body: JSON.stringify({ email })
     });
+    // Antes esto no revisaba res.ok — un 500 del servidor (Gmail caído,
+    // perfil sin fila, etc.) se mostraba igual como "✓ enviado".
+    if (!res.ok) {
+      let msg = 'Error del servidor';
+      try { const data = await res.json(); msg = data.error || msg; } catch(_) {}
+      console.error('reset-password-request falló:', res.status, msg);
+      statusEl.textContent = `Error: ${msg}. Intenta de nuevo o contacta al admin.`;
+      statusEl.style.color = 'var(--red)';
+      return;
+    }
     statusEl.textContent = '✓ Si el correo existe, recibirás un enlace en breve.';
     statusEl.style.color = 'var(--green)';
   } catch(e) {
-    statusEl.textContent = 'Error enviando. Intenta de nuevo.';
+    statusEl.textContent = 'Error de conexión. Intenta de nuevo.';
     statusEl.style.color = 'var(--red)';
   }
 }
